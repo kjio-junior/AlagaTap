@@ -1,4 +1,4 @@
-// js/share.js - URL-based sharing with compression for GitHub Pages/Vercel
+// js/share.js - URL-based sharing with compression
 export class ShareManager {
     constructor(state, elements) {
         this.state = state;

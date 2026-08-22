@@ -32,28 +32,8 @@
         });
     </script>
     
-    <!-- Custom Styles - Using absolute path from root -->
+    <!-- Custom Styles -->
     <link rel="stylesheet" href="/css/styles.css" />
-    <!-- Debug: Check if CSS loaded -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Check if styles loaded
-            const styles = document.querySelectorAll('link[rel="stylesheet"]');
-            console.log('Stylesheets:', styles.length);
-            styles.forEach(s => {
-                console.log('Stylesheet:', s.href, 'Loaded:', s.sheet ? 'Yes' : 'No');
-            });
-            
-            // If no styles loaded, try reloading
-            if (styles.length === 0 || !styles[0].sheet) {
-                console.warn('CSS may not have loaded, attempting reload...');
-                const link = document.createElement('link');
-                link.rel = 'stylesheet';
-                link.href = '/css/styles.css';
-                document.head.appendChild(link);
-            }
-        });
-    </script>
     
     <!-- Manifest for PWA -->
     <link rel="manifest" href="/manifest.json">
@@ -61,7 +41,7 @@
     <!-- Vercel Analytics -->
     <script defer src="https://vercel.com/analytics"></script>
     
-    <!-- Critical inline styles to prevent FOUC -->
+    <!-- Critical inline styles -->
     <style>
         /* Minimal critical CSS to prevent flash */
         body { 
@@ -73,6 +53,7 @@
             min-height: 100vh;
             padding: 12px;
             margin: 0;
+            transition: background 0.2s ease;
         }
         .alaga-container {
             max-width: 430px;
@@ -81,6 +62,7 @@
             border-radius: 16px;
             padding: 20px 16px 28px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+            transition: background 0.2s ease, color 0.2s ease;
         }
     </style>
 </head>
@@ -159,6 +141,7 @@
             <div id="notificationStatus" class="notification-status">
                 <span class="status-message">Enable to get reminders on your phone</span>
             </div>
+            <!-- Email setup will be injected here by JavaScript -->
         </div>
 
         <!-- Compartment List -->

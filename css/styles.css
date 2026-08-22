@@ -415,6 +415,33 @@ h1, h2, h3, h4 {
     border-left: 3px solid #FF5252;
 }
 
+/* Email setup inline */
+.email-setup-inline {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-primary);
+    border-radius: 6px;
+    border: 1px dashed var(--border-color);
+}
+
+.email-setup-inline .email-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    flex: 1;
+}
+
+.email-setup-inline .email-status {
+    font-weight: 500;
+}
+
+.email-setup-inline .btn-sm {
+    min-height: 36px;
+    font-size: 12px;
+}
+
 /* Compartment Section */
 .compartment-section {
     margin-bottom: 16px;

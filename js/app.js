@@ -68,10 +68,11 @@ let cooldownInterval = null;
 let selectedMedId = null;
 let notificationManager = null;
 
-// Theme management
+// ===== THEME MANAGEMENT =====
 function setTheme(theme) {
     state.theme = theme;
     document.documentElement.setAttribute('data-theme', theme);
+    document.body.style.background = theme === 'dark' ? '#0b1120' : '#f1f5f9';
     saveState(state);
     updateThemeIcon();
 }
@@ -327,6 +328,39 @@ function showToast(message) {
     }, 3000);
 }
 
+// Add email setup inline in notification section
+function addEmailSetupUI() {
+    const notificationSection = document.getElementById('notificationSection');
+    if (!notificationSection) return;
+    
+    // Check if already exists
+    if (document.getElementById('emailSetupInline')) return;
+    
+    const emailDiv = document.createElement('div');
+    emailDiv.id = 'emailSetupInline';
+    emailDiv.className = 'email-setup-inline';
+    emailDiv.innerHTML = `
+        <span class="email-label">
+            📧 Email: 
+            <span class="email-status" id="emailStatusDisplay">
+                ${localStorage.getItem('notificationEmail') ? '✅ ' + localStorage.getItem('notificationEmail') : 'Not set'}
+            </span>
+        </span>
+        <button id="emailSetupBtnInline" class="btn-secondary btn-sm">
+            ${localStorage.getItem('notificationEmail') ? 'Change' : 'Set Email'}
+        </button>
+    `;
+    notificationSection.appendChild(emailDiv);
+    
+    document.getElementById('emailSetupBtnInline').addEventListener('click', () => {
+        if (notificationManager) {
+            notificationManager.showEmailSetup();
+        } else {
+            alert('Please enable notifications first.');
+        }
+    });
+}
+
 // Initialize
 function init() {
     const shareManager = new ShareManager(state, elements);
@@ -503,6 +537,11 @@ function init() {
     
     // Initialize Notifications
     notificationManager = initNotifications(state, saveState);
+    
+    // Add email setup UI after notifications are initialized
+    setTimeout(() => {
+        addEmailSetupUI();
+    }, 500);
     
     // Test notification button
     document.getElementById('testNotifBtn')?.addEventListener('click', () => {

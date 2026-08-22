@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <title>AlagaTap · Smart Pill Dashboard</title>
+  <!-- Tailwind via CDN + inter font -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    body { background: #f1f5f9; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 12px; }
+    /* mobile-first card container – 375–430px optimal */
+    .alaga-container {
+      max-width: 430px; width: 100%; margin: 0 auto;
+      background: #ffffff; border-radius: 32px; box-shadow: 0 20px 40px -12px rgba(0,0,0,0.15);
+      padding: 20px 16px 28px; transition: all 0.2s;
+    }
+    /* touch targets 48px+ */
+    button, .tap-target { min-height: 48px; min-width: 48px; }
+    /* extra large accessible text */
+    .text-hero { font-size: 1.5rem; line-height: 2rem; font-weight: 600; letter-spacing: -0.02em; }
+    .text-xl { font-size: 1.25rem; line-height: 1.75rem; }
+    /* custom mint / blue / coral */
+    .bg-mint { background-color: #00E5A3; }
+    .bg-mint-dark { background-color: #00B88A; }
+    .bg-trust-blue { background-color: #0052CC; }
+    .bg-trust-light { background-color: #00A3FF; }
+    .text-trust-blue { color: #0052CC; }
+    .border-mint { border-color: #00E5A3; }
+    .bg-soft-coral { background-color: #FF5252; }
+    .bg-warm { background-color: #FFB800; }
+    .slate-bg { background-color: #F8FAFC; }
+    .slate-text { color: #0F172A; }
+    .cooldown-badge { background: #e2e8f0; color: #1e293b; }
+    /* card hover & status */
+    .compartment-card { transition: all 0.15s; border: 1px solid #e9edf2; }
+    .compartment-card:hover { border-color: #00A3FF; background: #f8fcff; }
+    .pill-count-badge { background: #eef2f6; border-radius: 40px; padding: 2px 12px; font-size: 0.8rem; }
+    .warning-banner { background: #fff3e0; border-left: 6px solid #FFB800; }
+    .overdue-banner { background: #ffebee; border-left: 6px solid #FF5252; }
+    .modal-overlay { background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(3px); }
+  </style>
+</head>
+<body>
+<div class="alaga-container" id="app">
+
+  <!-- HEADER : brand + caregiver share -->
+  <div class="flex justify-between items-center mb-4">
+    <div class="flex items-center gap-2">
+      <span class="text-2xl font-bold text-trust-blue">AlagaTap</span>
+      <span class="bg-trust-blue text-white text-[10px] px-2 py-0.5 rounded-full">QR·smart</span>
+    </div>
+    <button id="caregiverShareBtn" class="tap-target bg-slate-100 hover:bg-slate-200 rounded-full px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-1.5">
+      <span>👤</span> Caregiver
+    </button>
+  </div>
+
+  <!-- HERO CARD : daily status + one-tap log -->
+  <div class="bg-gradient-to-br from-[#0052CC] to-[#00A3FF] rounded-2xl p-5 text-white shadow-lg mb-5">
+    <div class="flex justify-between items-start">
+      <div>
+        <div class="text-sm opacity-80 font-medium">Today's status</div>
+        <div id="heroStatus" class="text-hero mt-0.5 flex items-center gap-2">
+          <span id="heroIcon">🟡</span> <span id="heroLabel">Dose Pending</span>
+        </div>
+        <div id="heroTimestamp" class="text-sm opacity-80 mt-0.5"></div>
+      </div>
+      <button id="recordDoseBtn" class="tap-target bg-white text-trust-blue font-bold px-5 py-2.5 rounded-full shadow-md hover:shadow-lg transition text-base flex items-center gap-1.5">
+        💊 Record Dose Taken
+      </button>
+    </div>
+    <!-- cooldown indicator -->
+    <div id="cooldownIndicator" class="mt-3 text-xs flex items-center gap-2 opacity-80 hidden">
+      <span class="inline-block w-2 h-2 bg-warm rounded-full animate-pulse"></span> Cooldown active · wait <span id="cooldownTimer">0</span>s
+    </div>
+  </div>
+
+  <!-- MISSED DOSE / OVERDUE WARNING BANNER -->
+  <div id="warningBanner" class="warning-banner rounded-xl px-4 py-3 mb-4 text-sm flex items-center gap-2 hidden">
+    <span>⚠️</span> <span id="warningText">Dose Overdue by 45 mins</span>
+  </div>
+
+  <!-- COMPARTMENT SCHEDULE -->
+  <div class="mb-5">
+    <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2.5 flex items-center gap-1">📦 compartments</h3>
+    <div id="compartmentList" class="space-y-3"></div>
+  </div>
+
+  <!-- INVENTORY / REFILL ALERT -->
+  <div id="refillAlert" class="bg-soft-coral/10 border border-soft-coral/30 text-soft-coral rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-2 hidden mb-4">
+    <span>🔄</span> <span id="refillMessage">Refill Pillbox Soon · Low doses remaining</span>
+  </div>
+
+  <!-- INTAKE HISTORY (expandable) -->
+  <div class="mt-2 border-t border-slate-100 pt-4">
+    <button id="historyToggle" class="w-full flex justify-between items-center tap-target text-slate-600 font-medium text-sm">
+      <span>📋 Intake history</span>
+      <span id="historyArrow">▼</span>
+    </button>
+    <div id="historyList" class="mt-2 space-y-1.5 max-h-48 overflow-y-auto text-sm"></div>
+  </div>
+
+  <!-- FOOTER : export/import + midnight reset info -->
+  <div class="mt-5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 border-t border-slate-100 pt-3">
+    <div class="flex gap-2">
+      <button id="exportDataBtn" class="tap-target bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full">📤 Export</button>
+      <button id="importDataBtn" class="tap-target bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full">📥 Import</button>
+      <input type="file" id="importFileInput" accept=".json" class="hidden">
+    </div>
+    <span class="text-[10px]">⏰ auto‑reset at midnight</span>
+  </div>
+</div>
+
+<!-- CONFIRMATION MODAL (one-tap logging) -->
+<div id="confirmModal" class="fixed inset-0 modal-overlay flex items-center justify-center px-4 z-50 hidden">
+  <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+    <div class="text-center">
+      <div class="text-4xl mb-2">💊</div>
+      <h3 class="text-xl font-bold text-slate-800">Confirm dose taken</h3>
+      <p class="text-slate-500 text-sm mt-1">This will log a <strong>self‑reported</strong> dose for <span id="modalCompartmentName">Morning</span>.</p>
+      <p class="text-xs text-slate-400 mt-0.5">⏱️ recorded at <span id="modalTimestampPreview">now</span></p>
+      <div class="flex gap-3 mt-5">
+        <button id="modalCancel" class="flex-1 tap-target bg-slate-100 hover:bg-slate-200 rounded-full py-2.5 font-medium">Cancel</button>
+        <button id="modalConfirm" class="flex-1 tap-target bg-trust-blue hover:bg-[#003d99] text-white rounded-full py-2.5 font-medium">Yes, log it</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CAREGIVER SHARE MODAL (read-only link) -->
+<div id="caregiverModal" class="fixed inset-0 modal-overlay flex items-center justify-center px-4 z-50 hidden">
+  <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+    <div class="text-center">
+      <div class="text-3xl mb-2">👤</div>
+      <h3 class="text-xl font-bold text-slate-800">Caregiver share</h3>
+      <p class="text-slate-500 text-sm mt-1">Generate a read‑only link for family or providers.</p>
+      <div class="bg-slate-50 p-3 rounded-xl my-3 text-sm font-mono break-all text-slate-700 border" id="caregiverLinkDisplay">alagatap://share/abc123</div>
+      <button id="caregiverRefreshLink" class="bg-trust-blue text-white px-5 py-2 rounded-full text-sm tap-target">↻ Generate new link</button>
+      <button id="caregiverClose" class="block w-full mt-3 text-slate-500 text-sm tap-target">Close</button>
+      <p class="text-[10px] text-slate-400 mt-2">📋 consent-based · view only</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    // ---------- STATE ----------
+    const STORAGE_KEY = 'alagaTapData';
+    const defaultState = {
+      compartments: [
+        { id: 'A', name: 'Morning', med: 'Amlodipine', dosage: '5mg', targetTime: '08:00', dosesRemaining: 12, maxDoses: 14 },
+        { id: 'B', name: 'Noon', med: 'Metformin', dosage: '500mg', targetTime: '12:30', dosesRemaining: 10, maxDoses: 14 },
+        { id: 'C', name: 'Night', med: 'Atorvastatin', dosage: '20mg', targetTime: '21:00', dosesRemaining: 8, maxDoses: 14 }
+      ],
+      logs: [],             // { timestamp, compartmentId, recordedAt }
+      lastDoseTimestamp: null,
+      cooldownUntil: null,
+      caregiverShareCode: 'share_' + Math.random().toString(36).substring(2, 8)
+    };
+
+    let state = loadState();
+    let historyOpen = false;
+    let cooldownInterval = null;
+
+    // DOM refs
+    const heroStatus = document.getElementById('heroStatus');
+    const heroIcon = document.getElementById('heroIcon');
+    const heroLabel = document.getElementById('heroLabel');
+    const heroTimestamp = document.getElementById('heroTimestamp');
+    const recordBtn = document.getElementById('recordDoseBtn');
+    const cooldownIndicator = document.getElementById('cooldownIndicator');
+    const cooldownTimer = document.getElementById('cooldownTimer');
+    const warningBanner = document.getElementById('warningBanner');
+    const warningText = document.getElementById('warningText');
+    const compartmentList = document.getElementById('compartmentList');
+    const refillAlert = document.getElementById('refillAlert');
+    const refillMessage = document.getElementById('refillMessage');
+    const historyToggle = document.getElementById('historyToggle');
+    const historyArrow = document.getElementById('historyArrow');
+    const historyList = document.getElementById('historyList');
+    const confirmModal = document.getElementById('confirmModal');
+    const modalCompartmentName = document.getElementById('modalCompartmentName');
+    const modalTimestampPreview = document.getElementById('modalTimestampPreview');
+    const modalCancel = document.getElementById('modalCancel');
+    const modalConfirm = document.getElementById('modalConfirm');
+    const caregiverModal = document.getElementById('caregiverModal');
+    const caregiverLinkDisplay = document.getElementById('caregiverLinkDisplay');
+    const caregiverRefreshLink = document.getElementById('caregiverRefreshLink');
+    const caregiverClose = document.getElementById('caregiverClose');
+    const caregiverShareBtn = document.getElementById('caregiverShareBtn');
+    const exportBtn = document.getElementById('exportDataBtn');
+    const importBtn = document.getElementById('importDataBtn');
+    const importFileInput = document.getElementById('importFileInput');
+    let selectedCompartmentId = 'A'; // default
+
+    // ---------- HELPERS ----------
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          // ensure compartments exist
+          if (parsed.compartments && parsed.logs !== undefined) return parsed;
+        }
+      } catch (_) {}
+      return JSON.parse(JSON.stringify(defaultState));
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function nowISO() { return new Date().toISOString(); }
+    function formatTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    function formatDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + formatTime(iso);
+    }
+
+    // get current hour/minute for overdue check
+    function getCurrentMinutes() {
+      const now = new Date();
+      return now.getHours() * 60 + now.getMinutes();
+    }
+
+    // ---------- RENDER ----------
+    function renderAll() {
+      renderHero();
+      renderCompartments();
+      renderWarnings();
+      renderRefillAlert();
+      renderHistory();
+      updateCooldownUI();
+      saveState();
+    }
+
+    function renderHero() {
+      // find today's latest log for any compartment
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayLogs = state.logs.filter(l => l.timestamp.startsWith(todayStr));
+      const latest = todayLogs.length ? todayLogs.reduce((a,b) => a.timestamp > b.timestamp ? a : b) : null;
+      if (latest) {
+        const comp = state.compartments.find(c => c.id === latest.compartmentId);
+        heroIcon.textContent = '🟢';
+        heroLabel.textContent = `${comp ? comp.name : ''} Dose Logged`;
+        heroTimestamp.textContent = `✅ at ${formatTime(latest.timestamp)} · self‑reported`;
+      } else {
+        heroIcon.textContent = '🟡';
+        heroLabel.textContent = 'Dose Pending';
+        heroTimestamp.textContent = '⏳ no dose logged today';
+      }
+    }
+
+    function renderCompartments() {
+      let html = '';
+      state.compartments.forEach(comp => {
+        const isOverdue = checkOverdue(comp.id);
+        const statusIcon = isOverdue ? '🔴' : '⚪';
+        const statusLabel = isOverdue ? 'Overdue' : 'Scheduled';
+        html += `
+          <div class="compartment-card rounded-xl p-3 bg-white flex items-center justify-between tap-target" data-comp-id="${comp.id}">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-semibold text-slate-600">${comp.id}</div>
+              <div>
+                <div class="font-semibold text-slate-800 text-base">${comp.name}</div>
+                <div class="text-sm text-slate-500">${comp.med} ${comp.dosage} · target ${comp.targetTime}</div>
+                <div class="flex items-center gap-1.5 mt-0.5 text-xs">
+                  <span>${statusIcon}</span> <span class="text-slate-600">${statusLabel}</span>
+                  <span class="pill-count-badge ml-1">${comp.dosesRemaining} doses left</span>
+                </div>
+              </div>
+            </div>
+            <button class="tap-target bg-trust-blue/10 text-trust-blue font-medium px-3 py-1.5 rounded-full text-sm log-comp-btn" data-comp-id="${comp.id}">Log</button>
+          </div>
+        `;
+      });
+      compartmentList.innerHTML = html;
+
+      // attach log buttons
+      document.querySelectorAll('.log-comp-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = btn.dataset.compId;
+          selectedCompartmentId = id;
+          openConfirmModal(id);
+        });
+      });
+      // click on card also logs
+      document.querySelectorAll('.compartment-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const id = card.dataset.compId;
+          selectedCompartmentId = id;
+          openConfirmModal(id);
+        });
+      });
+    }
+
+    function checkOverdue(compId) {
+      const comp = state.compartments.find(c => c.id === compId);
+      if (!comp) return false;
+      const now = new Date();
+      const [h, m] = comp.targetTime.split(':').map(Number);
+      const targetMin = h*60 + m;
+      const currentMin = now.getHours()*60 + now.getMinutes();
+      // if current time is past target + 30 min and no log today for this comp
+      if (currentMin > targetMin + 30) {
+        const todayStr = now.toISOString().split('T')[0];
+        const loggedToday = state.logs.some(l => l.compartmentId === compId && l.timestamp.startsWith(todayStr));
+        if (!loggedToday) return true;
+      }
+      return false;
+    }
+
+    function renderWarnings() {
+      const overdueComps = state.compartments.filter(c => checkOverdue(c.id));
+      if (overdueComps.length) {
+        warningBanner.classList.remove('hidden', 'warning-banner');
+        warningBanner.classList.add('overdue-banner');
+        const names = overdueComps.map(c => c.name).join(', ');
+        warningText.textContent = `⚠️ Dose Overdue · ${names}`;
+      } else {
+        warningBanner.classList.add('hidden');
+      }
+    }
+
+    function renderRefillAlert() {
+      const low = state.compartments.some(c => c.dosesRemaining <= 3);
+      if (low) {
+        refillAlert.classList.remove('hidden');
+        refillMessage.textContent = '🔄 Refill Pillbox Soon · 3 or fewer doses remaining in some slots';
+      } else {
+        refillAlert.classList.add('hidden');
+      }
+    }
+
+    function renderHistory() {
+      if (!historyOpen) {
+        historyList.innerHTML = '';
+        historyArrow.textContent = '▼';
+        return;
+      }
+      historyArrow.textContent = '▲';
+      if (!state.logs.length) {
+        historyList.innerHTML = '<div class="text-slate-400 text-sm py-2">No logs yet</div>';
+        return;
+      }
+      const recent = [...state.logs].reverse().slice(0, 20);
+      let html = '';
+      recent.forEach(log => {
+        const comp = state.compartments.find(c => c.id === log.compartmentId);
+        const name = comp ? comp.name : 'unknown';
+        html += `<div class="flex justify-between items-center border-b border-slate-100 py-1.5 text-sm">
+          <span><span class="font-medium">${name}</span> · ${log.med || 'dose'}</span>
+          <span class="text-slate-500 text-xs">${formatDate(log.timestamp)}</span>
+        </div>`;
+      });
+      historyList.innerHTML = html;
+    }
+
+    function updateCooldownUI() {
+      const now = Date.now();
+      const cooldown = state.cooldownUntil || 0;
+      if (cooldown > now) {
+        cooldownIndicator.classList.remove('hidden');
+        const remaining = Math.ceil((cooldown - now) / 1000);
+        cooldownTimer.textContent = remaining;
+        recordBtn.disabled = true;
+        recordBtn.classList.add('opacity-50', 'pointer-events-none');
+      } else {
+        cooldownIndicator.classList.add('hidden');
+        recordBtn.disabled = false;
+        recordBtn.classList.remove('opacity-50', 'pointer-events-none');
+      }
+    }
+
+    // ---------- COOLDOWN TIMER ----------
+    function startCooldownTimer() {
+      if (cooldownInterval) clearInterval(cooldownInterval);
+      cooldownInterval = setInterval(() => {
+        updateCooldownUI();
+        if (state.cooldownUntil && Date.now() > state.cooldownUntil) {
+          clearInterval(cooldownInterval);
+          cooldownInterval = null;
+          updateCooldownUI();
+        }
+      }, 500);
+    }
+
+    // ---------- MODAL ----------
+    function openConfirmModal(compId) {
+      const comp = state.compartments.find(c => c.id === compId);
+      if (!comp) return;
+      // cooldown check
+      if (state.cooldownUntil && Date.now() < state.cooldownUntil) {
+        alert('⏳ Cooldown active. Please wait before logging another dose.');
+        return;
+      }
+      modalCompartmentName.textContent = comp.name;
+      modalTimestampPreview.textContent = formatTime(nowISO());
+      confirmModal.classList.remove('hidden');
+      selectedCompartmentId = compId;
+    }
+
+    function closeConfirmModal() { confirmModal.classList.add('hidden'); }
+
+    // confirm log
+    function logDose() {
+      const comp = state.compartments.find(c => c.id === selectedCompartmentId);
+      if (!comp) return;
+      if (state.cooldownUntil && Date.now() < state.cooldownUntil) {
+        alert('Cooldown active.');
+        return;
+      }
+      // reduce remaining doses
+      comp.dosesRemaining = Math.max(0, comp.dosesRemaining - 1);
+      // add log
+      state.logs.push({
+        timestamp: nowISO(),
+        compartmentId: comp.id,
+        med: comp.med,
+        recordedAt: nowISO()
+      });
+      // set cooldown 5 min
+      state.cooldownUntil = Date.now() + 5 * 60 * 1000;
+      // reset midnight check: we archive automatically by keeping all logs, but status resets at midnight via render logic.
+      // also we do not remove logs; history shows all.
+      closeConfirmModal();
+      renderAll();
+      startCooldownTimer();
+    }
+
+    // ---------- MIDNIGHT RESET (check on load & interval) ----------
+    function checkMidnightReset() {
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      // if last reset wasn't today, we could archive logs – but we keep all. We just reset pending statuses implicitly.
+      // We store a "lastResetDate" in state to avoid repeated actions
+      if (!state.lastResetDate || state.lastResetDate !== todayStr) {
+        state.lastResetDate = todayStr;
+        // optionally we could archive logs but we keep full history.
+        saveState();
+        renderAll();
+      }
+    }
+
+    // ---------- CAREGIVER ----------
+    function generateShareCode() {
+      state.caregiverShareCode = 'share_' + Math.random().toString(36).substring(2, 10);
+      saveState();
+      caregiverLinkDisplay.textContent = '🔗 alagatap://view/' + state.caregiverShareCode;
+    }
+
+    // ---------- EXPORT / IMPORT ----------
+    function exportData() {
+      const data = JSON.stringify(state, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'alagaTap_backup.json';
+      a.click();
+    }
+
+    function importData(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported.compartments && imported.logs !== undefined) {
+            state = imported;
+            saveState();
+            renderAll();
+            alert('✅ Data imported successfully.');
+          } else {
+            alert('❌ Invalid backup file.');
+          }
+        } catch (_) { alert('❌ Error reading file.'); }
+      };
+      reader.readAsText(file);
+    }
+
+    // ---------- INIT ----------
+    function init() {
+      renderAll();
+      checkMidnightReset();
+      startCooldownTimer();
+
+      // Record main button
+      recordBtn.addEventListener('click', () => {
+        // default to first compartment
+        selectedCompartmentId = state.compartments[0]?.id || 'A';
+        openConfirmModal(selectedCompartmentId);
+      });
+
+      // modal events
+      modalCancel.addEventListener('click', closeConfirmModal);
+      modalConfirm.addEventListener('click', logDose);
+      confirmModal.addEventListener('click', (e) => { if (e.target === confirmModal) closeConfirmModal(); });
+
+      // history toggle
+      historyToggle.addEventListener('click', () => {
+        historyOpen = !historyOpen;
+        renderHistory();
+      });
+
+      // caregiver
+      caregiverShareBtn.addEventListener('click', () => {
+        caregiverLinkDisplay.textContent = '🔗 alagatap://view/' + state.caregiverShareCode;
+        caregiverModal.classList.remove('hidden');
+      });
+      caregiverClose.addEventListener('click', () => caregiverModal.classList.add('hidden'));
+      caregiverRefreshLink.addEventListener('click', generateShareCode);
+      caregiverModal.addEventListener('click', (e) => { if (e.target === caregiverModal) caregiverModal.classList.add('hidden'); });
+
+      // export / import
+      exportBtn.addEventListener('click', exportData);
+      importBtn.addEventListener('click', () => importFileInput.click());
+      importFileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) importData(e.target.files[0]);
+        e.target.value = '';
+      });
+
+      // periodic refresh
+      setInterval(() => { renderAll(); checkMidnightReset(); }, 30000);
+    }
+
+    // start
+    init();
+  })();
+</script>
+</body>
+</html>

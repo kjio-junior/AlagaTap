@@ -1,4 +1,4 @@
-/* Base styles and dark mode variables */
+/* Base styles and dark mode variables - RESTORED ORIGINAL WORKING VERSION */
 :root {
     --bg-primary: #ffffff;
     --bg-secondary: #f8fafc;
@@ -20,7 +20,7 @@
     --bg-card: #1e293b;
     --text-primary: #f1f5f9;
     --text-secondary: #cbd5e1;
-    --text-muted: #64748b;
+    --text-muted: #94a3b8;
     --border-color: #334155;
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.4);

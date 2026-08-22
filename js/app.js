@@ -524,7 +524,15 @@ function init() {
             if (e.target === modal) closeModal(modal);
         });
     });
-    
+
+        // Add test notification button
+    document.getElementById('testNotifBtn')?.addEventListener('click', () => {
+        if (window.testAlagaTapNotification) {
+            window.testAlagaTapNotification();
+        } else {
+            alert('Notifications not loaded yet. Please enable reminders first.');
+        }
+    });
     // Initialize notifications
     initNotifications(state, saveState);
     

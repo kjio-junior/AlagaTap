@@ -221,7 +221,7 @@ function openConfirmModal(medId) {
     openModal(elements.confirmModal);
 }
 
-// ===== OPEN EDIT MODAL - FIXED TIMEZONE =====
+// ===== OPEN EDIT MODAL - FIXED TIMEZONE (USING UTC METHODS) =====
 function openEditModal(medId) {
     const med = state.medications.find(function(m) { return m.id === medId; });
     if (!med) return;
@@ -232,21 +232,28 @@ function openEditModal(medId) {
     elements.medDosage.value = med.dosage;
     elements.medCompartment.value = med.compartment;
     
-    // Convert UTC to Local Time for datetime-local input
-    var localDate = new Date(med.schedule);
-    var year = localDate.getFullYear();
-    var month = String(localDate.getMonth() + 1).padStart(2, '0');
-    var day = String(localDate.getDate()).padStart(2, '0');
-    var hours = String(localDate.getHours()).padStart(2, '0');
-    var minutes = String(localDate.getMinutes()).padStart(2, '0');
+    // ===== FIX: Use UTC values directly from the stored ISO string =====
+    // The stored date is in UTC format: "2026-08-22T16:12:00.000Z"
+    // We need to extract the UTC year, month, day, hours, minutes
+    var utcDate = new Date(med.schedule);
+    
+    // Get UTC values directly
+    var year = utcDate.getUTCFullYear();
+    var month = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
+    var day = String(utcDate.getUTCDate()).padStart(2, '0');
+    var hours = String(utcDate.getUTCHours()).padStart(2, '0');
+    var minutes = String(utcDate.getUTCMinutes()).padStart(2, '0');
+    
+    // Format for datetime-local input (YYYY-MM-DDTHH:mm)
     elements.medSchedule.value = year + '-' + month + '-' + day + 'T' + hours + ':' + minutes;
+    // ==============================================================
     
     elements.medInventory.value = med.inventory;
     
     openModal(elements.medicationModal);
 }
 
-// ===== RESET MEDICATION FORM - FIXED TIMEZONE =====
+// ===== RESET MEDICATION FORM =====
 function resetMedicationForm() {
     elements.modalTitle.textContent = 'Add Medication';
     elements.editId.value = '';
@@ -377,7 +384,7 @@ function addEmailSetupUI() {
     });
 }
 
-// ===== MEDICATION FORM SUBMIT - FIXED TIMEZONE =====
+// ===== MEDICATION FORM SUBMIT - FIXED =====
 function setupMedicationForm() {
     elements.medicationForm.addEventListener('submit', function(e) {
         e.preventDefault();

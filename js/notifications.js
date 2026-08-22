@@ -1,5 +1,5 @@
-// js/notifications.js - EmailJS notification system
-// No emojis used - clean professional UI
+// js/notifications.js - EmailJS ONLY notification system
+// NO FORMPREE - Sends directly to user's email
 
 export class NotificationManager {
     constructor(state, onUpdate) {
@@ -109,6 +109,7 @@ export class NotificationManager {
         `;
         document.body.appendChild(modal);
         
+        // ===== SAVE EMAIL BUTTON - EMAILJS ONLY =====
         document.getElementById('emailSetupBtn').addEventListener('click', async () => {
             const email = document.getElementById('emailInput').value.trim();
             const statusDiv = document.getElementById('emailSetupStatus');
@@ -120,15 +121,17 @@ export class NotificationManager {
                 return;
             }
             
+            // Save email locally
             localStorage.setItem('notificationEmail', email);
             localStorage.setItem('emailSetupShown', 'true');
             this.emailEnabled = true;
             
             statusDiv.style.display = 'block';
             statusDiv.style.color = '#0052CC';
-            statusDiv.textContent = 'Sending test email...';
+            statusDiv.textContent = 'Sending test email via EmailJS...';
             
             try {
+                // ===== EMAILJS - SEND DIRECTLY TO USER =====
                 const result = await window.emailjs.send(
                     this.emailjsServiceId,
                     this.emailjsTemplateId,
@@ -148,7 +151,7 @@ export class NotificationManager {
                 
                 if (result.status === 200) {
                     statusDiv.style.color = '#00E5A3';
-                    statusDiv.textContent = 'Test email sent to ' + email;
+                    statusDiv.textContent = '✓ Test email sent to ' + email;
                     this.showStatus('Email notifications enabled', 'success');
                     this.showToast('Test email sent to ' + email);
                     document.dispatchEvent(new Event('emailUpdated'));
@@ -160,6 +163,7 @@ export class NotificationManager {
                 console.warn('Email send failed:', error);
                 statusDiv.style.color = '#FF5252';
                 statusDiv.textContent = 'Failed to send test email. Please try again.';
+                // Fallback: open email client
                 const subject = 'AlagaTap: Test Notification';
                 const body = 'Your medication reminders are set up! You will receive notifications 3 minutes before each dose.';
                 window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
@@ -251,10 +255,16 @@ export class NotificationManager {
         });
     }
     
-    // ===== SEND EMAIL NOTIFICATION =====
+    // ===== SEND EMAIL NOTIFICATION - EMAILJS ONLY =====
     sendEmailNotification(title, message, medication) {
         const userEmail = localStorage.getItem('notificationEmail');
-        if (!userEmail || !window.emailjs) {
+        if (!userEmail) {
+            console.warn('No email configured');
+            return;
+        }
+        
+        // If EmailJS not loaded, try loading it
+        if (!window.emailjs) {
             this.loadEmailJS().then(() => {
                 if (window.emailjs) {
                     this.sendEmailNotification(title, message, medication);
@@ -268,6 +278,7 @@ export class NotificationManager {
         const compartmentLabel = med.compartment ? this.getCompartmentLabel(med.compartment) : 'Unknown';
         const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         
+        // ===== EMAILJS - SEND DIRECTLY TO USER =====
         window.emailjs.send(
             this.emailjsServiceId,
             this.emailjsTemplateId,
@@ -291,6 +302,7 @@ export class NotificationManager {
             }
         }).catch((error) => {
             console.warn('Email send failed:', error);
+            // Fallback: open email client
             const subject = `AlagaTap: ${title}`;
             const body = `${message}\n\nMedication: ${med.name || 'Unknown'}\nDosage: ${med.dosage || 'Unknown'}\nCompartment: ${compartmentLabel}\nScheduled: ${scheduledTime}`;
             window.open(`mailto:${userEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');

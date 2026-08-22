@@ -1,8 +1,11 @@
 // js/notifications.js - EmailJS ONLY notification system
 // NO FORMPREE - Sends directly to user's email
 
+console.log('📧 notifications.js loaded');
+
 export class NotificationManager {
     constructor(state, onUpdate) {
+        console.log('🔧 NotificationManager constructor called');
         this.state = state;
         this.onUpdate = onUpdate;
         this.notificationCheckInterval = null;
@@ -14,11 +17,19 @@ export class NotificationManager {
         this.emailjsPublicKey = 'mCeqJyqUw5x1XdUK2'; // Your Public Key
         // ===================================================
         
+        console.log('📧 EmailJS config:', {
+            serviceId: this.emailjsServiceId,
+            templateId: this.emailjsTemplateId,
+            publicKey: this.emailjsPublicKey
+        });
+        
         this.emailEnabled = localStorage.getItem('notificationEmail') !== null;
         this.init();
     }
     
     async init() {
+        console.log('🔄 NotificationManager.init() called');
+        
         // Load EmailJS SDK
         await this.loadEmailJS();
         
@@ -51,24 +62,30 @@ export class NotificationManager {
                 this.showEmailSetup();
             }, 3000);
         }
+        
+        console.log('✅ NotificationManager initialized');
     }
     
     async loadEmailJS() {
+        console.log('📥 Loading EmailJS...');
         return new Promise((resolve) => {
             if (window.emailjs) {
+                console.log('✅ EmailJS already loaded');
                 window.emailjs.init(this.emailjsPublicKey);
                 resolve();
                 return;
             }
             
+            console.log('⏳ Loading EmailJS from CDN...');
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js';
             script.onload = () => {
+                console.log('✅ EmailJS loaded from CDN');
                 window.emailjs.init(this.emailjsPublicKey);
                 resolve();
             };
             script.onerror = () => {
-                console.warn('Failed to load EmailJS, using fallback...');
+                console.warn('⚠️ Failed to load EmailJS');
                 resolve();
             };
             document.head.appendChild(script);
@@ -77,6 +94,7 @@ export class NotificationManager {
     
     // ===== EMAIL SETUP =====
     showEmailSetup() {
+        console.log('📧 Showing email setup');
         if (localStorage.getItem('emailSetupShown') === 'true' && localStorage.getItem('notificationEmail')) {
             const currentEmail = localStorage.getItem('notificationEmail');
             if (!confirm(`Your current email is: ${currentEmail}\n\nDo you want to change it?`)) {
@@ -296,12 +314,12 @@ export class NotificationManager {
             }
         ).then((result) => {
             if (result.status === 200) {
-                console.log('Email sent to:', userEmail);
-                console.log('Medication:', med.name);
-                console.log('Scheduled:', scheduledTime);
+                console.log('✅ Email sent to:', userEmail);
+                console.log('📋 Medication:', med.name);
+                console.log('⏰ Scheduled:', scheduledTime);
             }
         }).catch((error) => {
-            console.warn('Email send failed:', error);
+            console.warn('❌ Email send failed:', error);
             // Fallback: open email client
             const subject = `AlagaTap: ${title}`;
             const body = `${message}\n\nMedication: ${med.name || 'Unknown'}\nDosage: ${med.dosage || 'Unknown'}\nCompartment: ${compartmentLabel}\nScheduled: ${scheduledTime}`;
@@ -311,6 +329,7 @@ export class NotificationManager {
     
     // ===== TEST NOTIFICATION (DEBUG) =====
     testNotification() {
+        console.log('🧪 testNotification() called');
         if (!this.state.notificationsEnabled) {
             this.showToast('Please enable notifications first');
             return;
@@ -323,6 +342,7 @@ export class NotificationManager {
             return;
         }
         
+        console.log('📧 Sending test email to:', userEmail);
         this.sendEmailNotification(
             'Test Notification',
             'Your notifications are working! You will get reminders 3 minutes before each dose.',
@@ -373,7 +393,11 @@ export class NotificationManager {
     }
 }
 
+console.log('📧 NotificationManager class defined');
+
 export function initNotifications(state, onUpdate) {
+    console.log('📧 initNotifications() called');
     const manager = new NotificationManager(state, onUpdate);
+    console.log('📧 NotificationManager instance created:', manager);
     return manager;
 }

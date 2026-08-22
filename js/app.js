@@ -525,12 +525,19 @@ function init() {
         });
     });
 
-        // Add test notification button
+            // Test notification button
     document.getElementById('testNotifBtn')?.addEventListener('click', () => {
         if (window.testAlagaTapNotification) {
             window.testAlagaTapNotification();
         } else {
-            alert('Notifications not loaded yet. Please enable reminders first.');
+            showToast('⚠️ Loading notification system...');
+            setTimeout(() => {
+                if (window.testAlagaTapNotification) {
+                    window.testAlagaTapNotification();
+                } else {
+                    alert('Please enable notifications first using the toggle switch.');
+                }
+            }, 1000);
         }
     });
     // Initialize notifications

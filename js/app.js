@@ -5,7 +5,7 @@ import {
     getStatusText, getLastDoseTime, getCompartmentLabel,
     getAdherenceStats, getLogsForSummary 
 } from './utils.js';
-import { initNotifications } from './notifications.js';  // <-- THIS MUST BE HERE
+import { initNotifications } from './notifications.js';
 import { ShareManager } from './share.js';
 import {
     renderHero, renderCompartmentList, renderWarnings, 
@@ -115,7 +115,7 @@ function addMedication(data) {
 }
 
 function updateMedication(id, data) {
-    const med = state.medications.find(m => m.id === id);
+    const med = state.medications.find(function(m) { return m.id === id; });
     if (!med) return;
     
     med.name = data.name.trim();
@@ -130,15 +130,15 @@ function updateMedication(id, data) {
 }
 
 function deleteMedication(id) {
-    state.medications = state.medications.filter(m => m.id !== id);
-    state.logs = state.logs.filter(l => l.medicationId !== id);
+    state.medications = state.medications.filter(function(m) { return m.id !== id; });
+    state.logs = state.logs.filter(function(l) { return l.medicationId !== id; });
     saveState(state);
     renderAll();
 }
 
 // Dose logging
 function logDose(medId) {
-    const med = state.medications.find(m => m.id === medId);
+    const med = state.medications.find(function(m) { return m.id === medId; });
     if (!med) return;
     
     if (state.cooldownUntil && Date.now() < state.cooldownUntil) {
@@ -170,7 +170,7 @@ function logDose(medId) {
 
 function startCooldownTimer() {
     if (cooldownInterval) clearInterval(cooldownInterval);
-    cooldownInterval = setInterval(() => {
+    cooldownInterval = setInterval(function() {
         updateCooldown(state, elements);
         if (state.cooldownUntil && Date.now() > state.cooldownUntil) {
             clearInterval(cooldownInterval);
@@ -207,7 +207,7 @@ function closeModal(modal) {
 }
 
 function openConfirmModal(medId) {
-    const med = state.medications.find(m => m.id === medId);
+    const med = state.medications.find(function(m) { return m.id === medId; });
     if (!med) return;
     
     if (state.cooldownUntil && Date.now() < state.cooldownUntil) {
@@ -217,12 +217,13 @@ function openConfirmModal(medId) {
     
     selectedMedId = medId;
     elements.confirmDetails.textContent = 
-        `${getCompartmentLabel(med.compartment)} · ${med.name} ${med.dosage}`;
+        getCompartmentLabel(med.compartment) + ' · ' + med.name + ' ' + med.dosage;
     openModal(elements.confirmModal);
 }
 
+// ===== OPEN EDIT MODAL - FIXED TIMEZONE =====
 function openEditModal(medId) {
-    const med = state.medications.find(m => m.id === medId);
+    const med = state.medications.find(function(m) { return m.id === medId; });
     if (!med) return;
     
     elements.modalTitle.textContent = 'Edit Medication';
@@ -230,22 +231,38 @@ function openEditModal(medId) {
     elements.medName.value = med.name;
     elements.medDosage.value = med.dosage;
     elements.medCompartment.value = med.compartment;
-    elements.medSchedule.value = med.schedule.substring(0, 16);
+    
+    // Convert UTC to Local Time for datetime-local input
+    var localDate = new Date(med.schedule);
+    var year = localDate.getFullYear();
+    var month = String(localDate.getMonth() + 1).padStart(2, '0');
+    var day = String(localDate.getDate()).padStart(2, '0');
+    var hours = String(localDate.getHours()).padStart(2, '0');
+    var minutes = String(localDate.getMinutes()).padStart(2, '0');
+    elements.medSchedule.value = year + '-' + month + '-' + day + 'T' + hours + ':' + minutes;
+    
     elements.medInventory.value = med.inventory;
     
     openModal(elements.medicationModal);
 }
 
+// ===== RESET MEDICATION FORM - FIXED TIMEZONE =====
 function resetMedicationForm() {
     elements.modalTitle.textContent = 'Add Medication';
     elements.editId.value = '';
     elements.medName.value = '';
     elements.medDosage.value = '';
     elements.medCompartment.value = 'A';
-    const now = new Date();
-    const offset = now.getTimezoneOffset() * 60000;
-    const localISOTime = (new Date(Date.now() - offset)).toISOString().slice(0, 16);
-    elements.medSchedule.value = localISOTime;
+    
+    // Set default to current LOCAL time
+    var now = new Date();
+    var year = now.getFullYear();
+    var month = String(now.getMonth() + 1).padStart(2, '0');
+    var day = String(now.getDate()).padStart(2, '0');
+    var hours = String(now.getHours()).padStart(2, '0');
+    var minutes = String(now.getMinutes()).padStart(2, '0');
+    elements.medSchedule.value = year + '-' + month + '-' + day + 'T' + hours + ':' + minutes;
+    
     elements.medInventory.value = '14';
 }
 
@@ -261,8 +278,8 @@ function exportSummary() {
     const data = {
         generatedAt: new Date().toISOString(),
         stats: stats,
-        logs: logs.map(log => {
-            const med = state.medications.find(m => m.id === log.medicationId);
+        logs: logs.map(function(log) {
+            const med = state.medications.find(function(m) { return m.id === log.medicationId; });
             return {
                 ...log,
                 medicationName: med ? med.name : 'Unknown',
@@ -275,7 +292,7 @@ function exportSummary() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `alagatap_summary_${getTodayStr()}.json`;
+    a.download = 'alagatap_summary_' + getTodayStr() + '.json';
     a.click();
     URL.revokeObjectURL(url);
 }
@@ -287,14 +304,14 @@ function exportData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `alagatap_backup_${getTodayStr()}.json`;
+    a.download = 'alagatap_backup_' + getTodayStr() + '.json';
     a.click();
     URL.revokeObjectURL(url);
 }
 
 function importData(file) {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = function(e) {
         try {
             const imported = JSON.parse(e.target.result);
             if (imported.medications && imported.logs !== undefined) {
@@ -320,10 +337,10 @@ function showToast(message) {
     toast.className = 'toast-notification';
     toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(() => {
+    setTimeout(function() {
         toast.style.opacity = '0';
         toast.style.transition = 'opacity 0.3s';
-        setTimeout(() => toast.remove(), 300);
+        setTimeout(function() { toast.remove(); }, 300);
     }, 3000);
 }
 
@@ -337,11 +354,12 @@ function addEmailSetupUI() {
     const emailDiv = document.createElement('div');
     emailDiv.id = 'emailSetupInline';
     emailDiv.className = 'email-setup-inline';
+    var emailDisplay = localStorage.getItem('notificationEmail') ? '✓ ' + localStorage.getItem('notificationEmail') : 'Not set';
     emailDiv.innerHTML = `
         <span class="email-label">
             Email: 
             <span class="email-status" id="emailStatusDisplay">
-                ${localStorage.getItem('notificationEmail') ? '✓ ' + localStorage.getItem('notificationEmail') : 'Not set'}
+                ${emailDisplay}
             </span>
         </span>
         <button id="emailSetupBtnInline" class="btn-secondary btn-sm">
@@ -350,12 +368,41 @@ function addEmailSetupUI() {
     `;
     notificationSection.appendChild(emailDiv);
     
-    document.getElementById('emailSetupBtnInline').addEventListener('click', () => {
+    document.getElementById('emailSetupBtnInline').addEventListener('click', function() {
         if (notificationManager) {
             notificationManager.showEmailSetup();
         } else {
             alert('Please enable notifications first.');
         }
+    });
+}
+
+// ===== MEDICATION FORM SUBMIT - FIXED TIMEZONE =====
+function setupMedicationForm() {
+    elements.medicationForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Convert local time to UTC for storage
+        var localDateTime = elements.medSchedule.value;
+        var localDate = new Date(localDateTime);
+        var utcISO = localDate.toISOString();
+        
+        var data = {
+            name: elements.medName.value,
+            dosage: elements.medDosage.value,
+            compartment: elements.medCompartment.value,
+            schedule: utcISO,
+            inventory: elements.medInventory.value
+        };
+        
+        var editId = elements.editId.value;
+        if (editId) {
+            updateMedication(editId, data);
+        } else {
+            addMedication(data);
+        }
+        closeModal(elements.medicationModal);
+        resetMedicationForm();
     });
 }
 
@@ -372,20 +419,22 @@ function init() {
     setTheme(state.theme || 'light');
     
     // Theme toggle
-    elements.themeToggle.addEventListener('click', () => {
+    elements.themeToggle.addEventListener('click', function() {
         setTheme(state.theme === 'light' ? 'dark' : 'light');
     });
     
     // Record dose
-    elements.recordDoseBtn.addEventListener('click', () => {
+    elements.recordDoseBtn.addEventListener('click', function() {
         if (state.medications.length === 0) {
             alert('Please add a medication first.');
             return;
         }
-        const today = getTodayStr();
-        const pending = state.medications.find(med => 
-            !state.logs.some(l => l.medicationId === med.id && l.timestamp.startsWith(today))
-        );
+        var today = getTodayStr();
+        var pending = state.medications.find(function(med) {
+            return !state.logs.some(function(l) {
+                return l.medicationId === med.id && l.timestamp.startsWith(today);
+            });
+        });
         if (pending) {
             openConfirmModal(pending.id);
         } else {
@@ -394,41 +443,23 @@ function init() {
     });
     
     // Add medication
-    elements.addMedicationBtn.addEventListener('click', () => {
+    elements.addMedicationBtn.addEventListener('click', function() {
         resetMedicationForm();
         openModal(elements.medicationModal);
     });
     
-    // Medication form submit
-    elements.medicationForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const data = {
-            name: elements.medName.value,
-            dosage: elements.medDosage.value,
-            compartment: elements.medCompartment.value,
-            schedule: new Date(elements.medSchedule.value).toISOString(),
-            inventory: elements.medInventory.value
-        };
-        
-        const editId = elements.editId.value;
-        if (editId) {
-            updateMedication(editId, data);
-        } else {
-            addMedication(data);
-        }
-        closeModal(elements.medicationModal);
-        resetMedicationForm();
-    });
+    // Setup medication form
+    setupMedicationForm();
     
     // Confirm log
-    elements.confirmLogBtn.addEventListener('click', () => {
+    elements.confirmLogBtn.addEventListener('click', function() {
         if (selectedMedId) {
             logDose(selectedMedId);
         }
     });
     
     // History toggle
-    elements.historyToggle.addEventListener('click', () => {
+    elements.historyToggle.addEventListener('click', function() {
         historyOpen = !historyOpen;
         renderHistory(state, elements, historyOpen);
     });
@@ -438,11 +469,11 @@ function init() {
     elements.exportSummaryBtn.addEventListener('click', exportSummary);
     
     // Caregiver sharing
-    document.getElementById('caregiverBtn').addEventListener('click', () => {
-        const shareUrl = shareManager.generateShareLink();
+    document.getElementById('caregiverBtn').addEventListener('click', function() {
+        var shareUrl = shareManager.generateShareLink();
         if (shareUrl) {
             elements.shareLink.textContent = shareUrl;
-            const qrContainer = elements.qrCode;
+            var qrContainer = elements.qrCode;
             if (window.QRCode && qrContainer) {
                 qrContainer.innerHTML = '';
                 try {
@@ -466,26 +497,36 @@ function init() {
     });
     
     // Copy link
-    elements.copyLinkBtn.addEventListener('click', () => {
-        const link = elements.shareLink.textContent;
+    elements.copyLinkBtn.addEventListener('click', function() {
+        var link = elements.shareLink.textContent;
         if (link && link !== 'Generating link...') {
-            navigator.clipboard?.writeText(link).then(() => {
-                showToast('Link copied to clipboard!');
-            }).catch(() => {
-                const textArea = document.createElement('textarea');
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(link).then(function() {
+                    showToast('Link copied to clipboard!');
+                }).catch(function() {
+                    var textArea = document.createElement('textarea');
+                    textArea.value = link;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    textArea.remove();
+                    showToast('Link copied!');
+                });
+            } else {
+                var textArea = document.createElement('textarea');
                 textArea.value = link;
                 document.body.appendChild(textArea);
                 textArea.select();
                 document.execCommand('copy');
                 textArea.remove();
                 showToast('Link copied!');
-            });
+            }
         }
     });
     
     // Refresh share link
-    elements.refreshShareLink.addEventListener('click', () => {
-        const shareUrl = shareManager.generateShareLink();
+    elements.refreshShareLink.addEventListener('click', function() {
+        var shareUrl = shareManager.generateShareLink();
         if (shareUrl) {
             elements.shareLink.textContent = shareUrl;
             showToast('New share link generated');
@@ -493,22 +534,22 @@ function init() {
     });
     
     // Share history
-    elements.shareHistoryBtn.addEventListener('click', () => {
-        const history = shareManager.getShareHistory();
+    elements.shareHistoryBtn.addEventListener('click', function() {
+        var history = shareManager.getShareHistory();
         if (history.length === 0) {
             showToast('No share history yet');
             return;
         }
-        const historyText = history.map((h, i) => 
-            `${i+1}. ${new Date(h.date).toLocaleDateString()} - ${h.medications} medications`
-        ).join('\n');
+        var historyText = history.map(function(h, i) {
+            return (i+1) + '. ' + new Date(h.date).toLocaleDateString() + ' - ' + h.medications + ' medications';
+        }).join('\n');
         alert('Share History:\n' + historyText);
     });
     
     // Export/Import
     elements.exportBtn.addEventListener('click', exportData);
-    elements.importBtn.addEventListener('click', () => elements.importFileInput.click());
-    elements.importFileInput.addEventListener('change', (e) => {
+    elements.importBtn.addEventListener('click', function() { elements.importFileInput.click(); });
+    elements.importFileInput.addEventListener('change', function(e) {
         if (e.target.files.length) {
             importData(e.target.files[0]);
             e.target.value = '';
@@ -516,34 +557,34 @@ function init() {
     });
     
     // Modal close buttons
-    document.querySelectorAll('.modal-close, [data-modal]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const modalId = btn.dataset.modal;
+    document.querySelectorAll('.modal-close, [data-modal]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var modalId = btn.dataset.modal;
             if (modalId) {
-                const modal = document.getElementById(modalId);
+                var modal = document.getElementById(modalId);
                 if (modal) closeModal(modal);
             }
         });
     });
     
     // Close modals on overlay click
-    document.querySelectorAll('.modal-overlay').forEach(modal => {
-        modal.addEventListener('click', (e) => {
+    document.querySelectorAll('.modal-overlay').forEach(function(modal) {
+        modal.addEventListener('click', function(e) {
             if (e.target === modal) closeModal(modal);
         });
     });
     
-    // ===== INITIALIZE NOTIFICATIONS - EMAILJS =====
+    // Initialize Notifications (EmailJS)
     notificationManager = initNotifications(state, saveState);
     console.log('✅ NotificationManager initialized');
     
     // Add email setup UI
-    setTimeout(() => {
+    setTimeout(function() {
         addEmailSetupUI();
     }, 500);
     
-    // Test notification button
-    document.getElementById('testNotifBtn')?.addEventListener('click', () => {
+    // Test notification button (DEBUG - remove after testing)
+    document.getElementById('testNotifBtn')?.addEventListener('click', function() {
         if (notificationManager) {
             notificationManager.testNotification();
         } else {
@@ -559,7 +600,7 @@ function init() {
     startCooldownTimer();
     
     // Periodic refresh
-    setInterval(() => {
+    setInterval(function() {
         renderAll();
         checkMidnightReset();
     }, 30000);

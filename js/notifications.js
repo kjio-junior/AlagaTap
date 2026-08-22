@@ -1,23 +1,26 @@
-// js/notifications.js - OneSignal + Email notification system
+// js/notifications.js - EmailJS notification system
 // No emojis used - clean professional UI
 
 export class NotificationManager {
     constructor(state, onUpdate) {
         this.state = state;
         this.onUpdate = onUpdate;
-        this.onesignalInitialized = false;
         this.notificationCheckInterval = null;
         this.emailEnabled = false;
-        this.formspreeEndpoint = 'https://formspree.io/f/mwlezwlj';
+        
+        // ===== REPLACE WITH YOUR EMAILJS VALUES =====
+        this.emailjsServiceId = 'service_8pm1t27'; // Your Service ID
+        this.emailjsTemplateId = 'template_kzpgxam'; // Your Template ID
+        this.emailjsPublicKey = 'mCeqJyqUw5x1XdUK2'; // Your Public Key
+        // ===================================================
         
         this.emailEnabled = localStorage.getItem('notificationEmail') !== null;
         this.init();
     }
     
     async init() {
-        // Check OneSignal status
-        this.onesignalInitialized = true;
-        await this.checkOneSignalStatus();
+        // Load EmailJS SDK
+        await this.loadEmailJS();
         
         // Notification toggle
         const toggle = document.getElementById('notificationToggle');
@@ -30,10 +33,10 @@ export class NotificationManager {
                 
                 if (enabled) {
                     this.startChecker();
-                    this.showStatus('Notifications enabled', 'success');
+                    this.showStatus('Email reminders enabled', 'success');
                 } else {
                     this.stopChecker();
-                    this.showStatus('Notifications disabled', '');
+                    this.showStatus('Email reminders disabled', '');
                 }
             });
         }
@@ -50,24 +53,30 @@ export class NotificationManager {
         }
     }
     
-    async checkOneSignalStatus() {
-        try {
-            if (window.OneSignalDeferred) {
-                window.OneSignalDeferred.push(async function(OneSignal) {
-                    const isEnabled = await OneSignal.Notifications.permission;
-                    if (isEnabled) {
-                        this.showStatus('Browser notifications active', 'success');
-                    }
-                });
+    async loadEmailJS() {
+        return new Promise((resolve) => {
+            if (window.emailjs) {
+                window.emailjs.init(this.emailjsPublicKey);
+                resolve();
+                return;
             }
-        } catch (error) {
-            console.warn('OneSignal check failed:', error);
-        }
+            
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js';
+            script.onload = () => {
+                window.emailjs.init(this.emailjsPublicKey);
+                resolve();
+            };
+            script.onerror = () => {
+                console.warn('Failed to load EmailJS, using fallback...');
+                resolve();
+            };
+            document.head.appendChild(script);
+        });
     }
     
     // ===== EMAIL SETUP =====
     showEmailSetup() {
-        // Check if already configured
         if (localStorage.getItem('emailSetupShown') === 'true' && localStorage.getItem('notificationEmail')) {
             const currentEmail = localStorage.getItem('notificationEmail');
             if (!confirm(`Your current email is: ${currentEmail}\n\nDo you want to change it?`)) {
@@ -80,7 +89,7 @@ export class NotificationManager {
         modal.innerHTML = `
             <div class="email-setup-content">
                 <h3>Email Reminders</h3>
-                <p>Enter your email address to receive medication reminders via email.</p>
+                <p>Enter your email address to receive medication reminders.</p>
                 <p style="font-size: 13px; color: var(--text-muted); margin-top: -8px;">
                     You will get notifications 3 minutes before each dose.
                 </p>
@@ -111,7 +120,6 @@ export class NotificationManager {
                 return;
             }
             
-            // Save email locally FIRST - this is the user's email
             localStorage.setItem('notificationEmail', email);
             localStorage.setItem('emailSetupShown', 'true');
             this.emailEnabled = true;
@@ -121,24 +129,24 @@ export class NotificationManager {
             statusDiv.textContent = 'Sending test email...';
             
             try {
-                // Send test email TO the user's email address via Formspree
-                // Formspree forwards to YOUR email, but we include the user's email in the message
-                const response = await fetch(this.formspreeEndpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        // This is the user's email - Formspree will send to your configured email
-                        // But we include the user's email in the message body
-                        email: email, // This tells Formspree who the email is from
-                        subject: 'AlagaTap: Test Notification',
-                        message: `This is a test notification for: ${email}\n\nYour medication reminders are set up! You will receive notifications 3 minutes before each dose.\n\nTo test: Add a medication and set it 5 minutes from now.\n\nThis is a self-reported dose log system.`
-                    })
-                });
+                const result = await window.emailjs.send(
+                    this.emailjsServiceId,
+                    this.emailjsTemplateId,
+                    {
+                        to_email: email,
+                        to_name: 'AlagaTap User',
+                        title: 'Test Notification',
+                        message: 'Your medication reminders are set up! You will receive notifications 3 minutes before each dose.',
+                        medication_name: 'Test',
+                        dosage: 'Test',
+                        compartment: 'Test',
+                        scheduled_time: 'Test',
+                        current_time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        from_name: 'AlagaTap'
+                    }
+                );
                 
-                if (response.ok) {
+                if (result.status === 200) {
                     statusDiv.style.color = '#00E5A3';
                     statusDiv.textContent = 'Test email sent to ' + email;
                     this.showStatus('Email notifications enabled', 'success');
@@ -146,16 +154,15 @@ export class NotificationManager {
                     document.dispatchEvent(new Event('emailUpdated'));
                     setTimeout(() => modal.remove(), 1500);
                 } else {
-                    throw new Error('Failed to send email');
+                    throw new Error('EmailJS error');
                 }
             } catch (error) {
-                console.warn('Email send failed, using fallback:', error);
-                // Fallback: open email client with the user's email
+                console.warn('Email send failed:', error);
+                statusDiv.style.color = '#FF5252';
+                statusDiv.textContent = 'Failed to send test email. Please try again.';
                 const subject = 'AlagaTap: Test Notification';
                 const body = 'Your medication reminders are set up! You will receive notifications 3 minutes before each dose.';
-                window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-                modal.remove();
-                this.showToast('Email client opened. Please send the test email.');
+                window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
             }
         });
         
@@ -214,25 +221,28 @@ export class NotificationManager {
             
             if (alreadyLogged) return;
             
+            // 3 minutes before
             if (timeDiff >= -3 && timeDiff < 0 && nowSeconds < 5) {
-                this.sendNotification(
+                this.sendEmailNotification(
                     `Upcoming: ${med.name}`,
                     `${med.name} (${med.dosage}) due in ${Math.abs(Math.floor(timeDiff))} minutes. ${this.getCompartmentLabel(med.compartment)} dose.`,
                     med
                 );
             }
             
+            // At scheduled time
             if (timeDiff >= 0 && timeDiff <= 1 && nowSeconds < 10) {
-                this.sendNotification(
+                this.sendEmailNotification(
                     `Time for ${med.name}`,
                     `Take ${med.name} (${med.dosage}) - ${this.getCompartmentLabel(med.compartment)} dose.`,
                     med
                 );
             }
             
+            // Overdue (every 15 minutes)
             if (timeDiff > 1 && timeDiff % 15 < 1) {
                 const overdueMinutes = Math.floor(timeDiff);
-                this.sendNotification(
+                this.sendEmailNotification(
                     `${med.name} Overdue`,
                     `${med.name} is ${overdueMinutes} min overdue. ${this.getCompartmentLabel(med.compartment)} dose.`,
                     med
@@ -241,76 +251,73 @@ export class NotificationManager {
         });
     }
     
-    // ===== SEND NOTIFICATIONS =====
-    sendNotification(title, message, medication) {
-        // Send via OneSignal (browser push)
-        this.sendOneSignal(title, message, medication);
-        
-        // Send via Email (if configured)
-        if (this.emailEnabled) {
-            this.sendEmail(title, message, medication);
-        }
-    }
-    
-    sendOneSignal(title, message, medication) {
-        if (!window.OneSignal) return;
-        
-        window.OneSignalDeferred?.push(async function(OneSignal) {
-            try {
-                await OneSignal.Notifications.addNotification({
-                    title: title,
-                    body: message,
-                    data: {
-                        medicationId: medication ? medication.id : null
-                    }
-                });
-                console.log('OneSignal notification sent:', title);
-            } catch (err) {
-                console.warn('OneSignal send failed:', err);
-            }
-        });
-    }
-    
-    sendEmail(title, message, medication) {
+    // ===== SEND EMAIL NOTIFICATION =====
+    sendEmailNotification(title, message, medication) {
         const userEmail = localStorage.getItem('notificationEmail');
-        if (!userEmail) return;
+        if (!userEmail || !window.emailjs) {
+            this.loadEmailJS().then(() => {
+                if (window.emailjs) {
+                    this.sendEmailNotification(title, message, medication);
+                }
+            });
+            return;
+        }
         
-        const subject = `AlagaTap: ${title}`;
-        const body = `${message}\n\n---\nLogged by: Self-Reported\nTime: ${new Date().toLocaleString()}\nMedication: ${medication ? medication.name : 'Unknown'}`;
+        const med = medication || {};
+        const scheduledTime = med.schedule ? this.formatTime(med.schedule) : 'Unknown';
+        const compartmentLabel = med.compartment ? this.getCompartmentLabel(med.compartment) : 'Unknown';
+        const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         
-        // Send to Formspree - it will forward to YOUR email
-        // But we include the user's email in the message so you know who it's for
-        fetch(this.formspreeEndpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                email: userEmail, // This is the user's email address
-                subject: subject,
-                message: `Recipient: ${userEmail}\n\n${body}`
-            })
-        }).catch(() => {
-            // Fallback: open email client
-            window.location.href = `mailto:${userEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.emailjs.send(
+            this.emailjsServiceId,
+            this.emailjsTemplateId,
+            {
+                to_email: userEmail,
+                to_name: 'AlagaTap User',
+                title: title,
+                message: message,
+                medication_name: med.name || 'Unknown',
+                dosage: med.dosage || 'Unknown',
+                compartment: compartmentLabel,
+                scheduled_time: scheduledTime,
+                current_time: currentTime,
+                from_name: 'AlagaTap'
+            }
+        ).then((result) => {
+            if (result.status === 200) {
+                console.log('Email sent to:', userEmail);
+                console.log('Medication:', med.name);
+                console.log('Scheduled:', scheduledTime);
+            }
+        }).catch((error) => {
+            console.warn('Email send failed:', error);
+            const subject = `AlagaTap: ${title}`;
+            const body = `${message}\n\nMedication: ${med.name || 'Unknown'}\nDosage: ${med.dosage || 'Unknown'}\nCompartment: ${compartmentLabel}\nScheduled: ${scheduledTime}`;
+            window.open(`mailto:${userEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
         });
     }
     
-    // ===== TEST NOTIFICATION =====
+    // ===== TEST NOTIFICATION (DEBUG) =====
     testNotification() {
         if (!this.state.notificationsEnabled) {
             this.showToast('Please enable notifications first');
             return;
         }
         
-        this.sendNotification(
+        const userEmail = localStorage.getItem('notificationEmail');
+        if (!userEmail) {
+            this.showToast('Please set up your email first');
+            this.showEmailSetup();
+            return;
+        }
+        
+        this.sendEmailNotification(
             'Test Notification',
             'Your notifications are working! You will get reminders 3 minutes before each dose.',
             null
         );
         
-        this.showToast('Test notification sent! Check your phone/email.');
+        this.showToast('Test email sent to ' + userEmail);
     }
     
     // ===== UI HELPERS =====
@@ -345,6 +352,12 @@ export class NotificationManager {
     getCompartmentLabel(compartment) {
         const labels = { 'A': 'Morning', 'B': 'Noon', 'C': 'Night', 'D': 'Custom' };
         return labels[compartment] || compartment;
+    }
+    
+    formatTime(isoString) {
+        if (!isoString) return 'Unknown';
+        const d = new Date(isoString);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 }
 

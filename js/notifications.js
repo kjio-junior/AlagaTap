@@ -1,29 +1,20 @@
-// js/notifications.js - EmailJS ONLY notification system
-// NO FORMPREE - Sends directly to user's email
-
-console.log('🔥 notifications.js loaded successfully');
-
 export class NotificationManager {
     constructor(state, onUpdate) {
-        console.log('✅ NotificationManager constructor called');
+        console.log('NotificationManager constructor called');
         this.state = state;
         this.onUpdate = onUpdate;
         this.notificationCheckInterval = null;
         this.emailEnabled = false;
-        
-        // EmailJS configuration
         this.emailjsServiceId = 'service_8pm1t27';
         this.emailjsTemplateId = 'template_kzpgxam';
         this.emailjsPublicKey = 'mCeqJyqUw5x1XdUK2';
-        
         this.emailEnabled = localStorage.getItem('notificationEmail') !== null;
         this.init();
     }
     
     async init() {
-        console.log('🔄 Initializing NotificationManager...');
+        console.log('Initializing NotificationManager');
         await this.loadEmailJS();
-        
         const toggle = document.getElementById('notificationToggle');
         if (toggle) {
             toggle.checked = this.state.notificationsEnabled || false;
@@ -31,7 +22,6 @@ export class NotificationManager {
                 const enabled = e.target.checked;
                 this.state.notificationsEnabled = enabled;
                 this.onUpdate(this.state);
-                
                 if (enabled) {
                     this.startChecker();
                     this.showStatus('Email reminders enabled', 'success');
@@ -41,39 +31,31 @@ export class NotificationManager {
                 }
             });
         }
-        
         if (this.state.notificationsEnabled) {
             this.startChecker();
         }
-        
         if (this.state.notificationsEnabled && !this.emailEnabled) {
             setTimeout(() => {
                 this.showEmailSetup();
             }, 3000);
         }
-        
-        console.log('✅ NotificationManager initialized');
+        console.log('NotificationManager initialized');
     }
     
     async loadEmailJS() {
-        console.log('📥 Loading EmailJS...');
         return new Promise((resolve) => {
             if (window.emailjs) {
-                console.log('✅ EmailJS already loaded');
                 window.emailjs.init(this.emailjsPublicKey);
                 resolve();
                 return;
             }
-            
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js';
             script.onload = () => {
-                console.log('✅ EmailJS loaded from CDN');
                 window.emailjs.init(this.emailjsPublicKey);
                 resolve();
             };
             script.onerror = () => {
-                console.warn('⚠️ Failed to load EmailJS');
                 resolve();
             };
             document.head.appendChild(script);
@@ -81,14 +63,12 @@ export class NotificationManager {
     }
     
     showEmailSetup() {
-        console.log('📧 Showing email setup');
         if (localStorage.getItem('emailSetupShown') === 'true' && localStorage.getItem('notificationEmail')) {
             const currentEmail = localStorage.getItem('notificationEmail');
-            if (!confirm(`Your current email is: ${currentEmail}\n\nDo you want to change it?`)) {
+            if (!confirm('Your current email is: ' + currentEmail + '\n\nDo you want to change it?')) {
                 return;
             }
         }
-        
         const modal = document.createElement('div');
         modal.className = 'email-setup-modal';
         modal.innerHTML = `
@@ -113,28 +93,23 @@ export class NotificationManager {
             </div>
         `;
         document.body.appendChild(modal);
-        
         document.getElementById('emailSetupBtn').addEventListener('click', async () => {
             const email = document.getElementById('emailInput').value.trim();
             const statusDiv = document.getElementById('emailSetupStatus');
-            
             if (!email || !email.includes('@')) {
                 statusDiv.style.display = 'block';
                 statusDiv.style.color = '#FF5252';
                 statusDiv.textContent = 'Please enter a valid email address.';
                 return;
             }
-            
             localStorage.setItem('notificationEmail', email);
             localStorage.setItem('emailSetupShown', 'true');
             this.emailEnabled = true;
-            
             statusDiv.style.display = 'block';
             statusDiv.style.color = '#0052CC';
             statusDiv.textContent = 'Sending test email...';
-            
             try {
-                const result = await window.emailjs.send(
+                var result = await window.emailjs.send(
                     this.emailjsServiceId,
                     this.emailjsTemplateId,
                     {
@@ -150,14 +125,13 @@ export class NotificationManager {
                         from_name: 'AlagaTap'
                     }
                 );
-                
                 if (result.status === 200) {
                     statusDiv.style.color = '#00E5A3';
-                    statusDiv.textContent = '✓ Test email sent to ' + email;
+                    statusDiv.textContent = 'Test email sent to ' + email;
                     this.showStatus('Email notifications enabled', 'success');
                     this.showToast('Test email sent to ' + email);
                     document.dispatchEvent(new Event('emailUpdated'));
-                    setTimeout(() => modal.remove(), 1500);
+                    setTimeout(function() { modal.remove(); }, 1500);
                 } else {
                     throw new Error('EmailJS error');
                 }
@@ -165,13 +139,12 @@ export class NotificationManager {
                 console.warn('Email send failed:', error);
                 statusDiv.style.color = '#FF5252';
                 statusDiv.textContent = 'Failed to send test email. Please try again.';
-                const subject = 'AlagaTap: Test Notification';
-                const body = 'Your medication reminders are set up! You will receive notifications 3 minutes before each dose.';
-                window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+                var subject = 'AlagaTap: Test Notification';
+                var body = 'Your medication reminders are set up! You will receive notifications 3 minutes before each dose.';
+                window.open('mailto:' + email + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body), '_blank');
             }
         });
-        
-        document.getElementById('emailSkipBtn').addEventListener('click', () => {
+        document.getElementById('emailSkipBtn').addEventListener('click', function() {
             if (localStorage.getItem('notificationEmail')) {
                 if (confirm('Remove your email from AlagaTap reminders?')) {
                     localStorage.removeItem('notificationEmail');
@@ -187,15 +160,14 @@ export class NotificationManager {
                 modal.remove();
                 this.showStatus('Email notifications skipped', '');
             }
-        });
+        }.bind(this));
     }
     
     startChecker() {
-        console.log('⏰ Starting notification checker');
         this.stopChecker();
-        this.notificationCheckInterval = setInterval(() => {
+        this.notificationCheckInterval = setInterval(function() {
             this.checkScheduledDoses();
-        }, 30000);
+        }.bind(this), 30000);
         this.checkScheduledDoses();
     }
     
@@ -207,74 +179,62 @@ export class NotificationManager {
     }
     
     checkScheduledDoses() {
-        const now = new Date();
-        const today = now.toISOString().split('T')[0];
-        const nowMin = now.getHours() * 60 + now.getMinutes();
-        const nowSeconds = now.getSeconds();
-        
-        this.state.medications.forEach(med => {
-            const scheduleDate = new Date(med.schedule).toISOString().split('T')[0];
+        var now = new Date();
+        var today = now.toISOString().split('T')[0];
+        var nowMin = now.getHours() * 60 + now.getMinutes();
+        var nowSeconds = now.getSeconds();
+        this.state.medications.forEach(function(med) {
+            var scheduleDate = new Date(med.schedule).toISOString().split('T')[0];
             if (scheduleDate !== today) return;
-            
-            const scheduleMin = this.getScheduleMinutes(med.schedule);
-            const timeDiff = nowMin - scheduleMin;
-            
-            const alreadyLogged = this.state.logs.some(l => 
-                l.medicationId === med.id && 
-                l.timestamp.startsWith(today)
-            );
-            
+            var scheduleMin = this.getScheduleMinutes(med.schedule);
+            var timeDiff = nowMin - scheduleMin;
+            var alreadyLogged = this.state.logs.some(function(l) {
+                return l.medicationId === med.id && l.timestamp.startsWith(today);
+            });
             if (alreadyLogged) return;
-            
             if (timeDiff >= -3 && timeDiff < 0 && nowSeconds < 5) {
                 this.sendEmailNotification(
-                    `Upcoming: ${med.name}`,
-                    `${med.name} (${med.dosage}) due in ${Math.abs(Math.floor(timeDiff))} minutes. ${this.getCompartmentLabel(med.compartment)} dose.`,
+                    'Upcoming: ' + med.name,
+                    med.name + ' (' + med.dosage + ') due in ' + Math.abs(Math.floor(timeDiff)) + ' minutes. ' + this.getCompartmentLabel(med.compartment) + ' dose.',
                     med
                 );
             }
-            
             if (timeDiff >= 0 && timeDiff <= 1 && nowSeconds < 10) {
                 this.sendEmailNotification(
-                    `Time for ${med.name}`,
-                    `Take ${med.name} (${med.dosage}) - ${this.getCompartmentLabel(med.compartment)} dose.`,
+                    'Time for ' + med.name,
+                    'Take ' + med.name + ' (' + med.dosage + ') - ' + this.getCompartmentLabel(med.compartment) + ' dose.',
                     med
                 );
             }
-            
             if (timeDiff > 1 && timeDiff % 15 < 1) {
-                const overdueMinutes = Math.floor(timeDiff);
+                var overdueMinutes = Math.floor(timeDiff);
                 this.sendEmailNotification(
-                    `${med.name} Overdue`,
-                    `${med.name} is ${overdueMinutes} min overdue. ${this.getCompartmentLabel(med.compartment)} dose.`,
+                    med.name + ' Overdue',
+                    med.name + ' is ' + overdueMinutes + ' min overdue. ' + this.getCompartmentLabel(med.compartment) + ' dose.',
                     med
                 );
             }
-        });
+        }.bind(this));
     }
     
     sendEmailNotification(title, message, medication) {
-        const userEmail = localStorage.getItem('notificationEmail');
+        var userEmail = localStorage.getItem('notificationEmail');
         if (!userEmail) {
             console.warn('No email configured');
             return;
         }
-        
         if (!window.emailjs) {
-            console.warn('EmailJS not loaded, trying to load...');
-            this.loadEmailJS().then(() => {
+            this.loadEmailJS().then(function() {
                 if (window.emailjs) {
                     this.sendEmailNotification(title, message, medication);
                 }
-            });
+            }.bind(this));
             return;
         }
-        
-        const med = medication || {};
-        const scheduledTime = med.schedule ? this.formatTime(med.schedule) : 'Unknown';
-        const compartmentLabel = med.compartment ? this.getCompartmentLabel(med.compartment) : 'Unknown';
-        const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        
+        var med = medication || {};
+        var scheduledTime = med.schedule ? this.formatTime(med.schedule) : 'Unknown';
+        var compartmentLabel = med.compartment ? this.getCompartmentLabel(med.compartment) : 'Unknown';
+        var currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         window.emailjs.send(
             this.emailjsServiceId,
             this.emailjsTemplateId,
@@ -290,83 +250,79 @@ export class NotificationManager {
                 current_time: currentTime,
                 from_name: 'AlagaTap'
             }
-        ).then((result) => {
+        ).then(function(result) {
             if (result.status === 200) {
-                console.log('✅ Email sent to:', userEmail);
+                console.log('Email sent to:', userEmail);
             }
-        }).catch((error) => {
-            console.warn('❌ Email send failed:', error);
-            const subject = `AlagaTap: ${title}`;
-            const body = `${message}\n\nMedication: ${med.name || 'Unknown'}\nDosage: ${med.dosage || 'Unknown'}\nCompartment: ${compartmentLabel}\nScheduled: ${scheduledTime}`;
-            window.open(`mailto:${userEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+        }).catch(function(error) {
+            console.warn('Email send failed:', error);
+            var subject = 'AlagaTap: ' + title;
+            var body = message + '\n\nMedication: ' + (med.name || 'Unknown') + '\nDosage: ' + (med.dosage || 'Unknown') + '\nCompartment: ' + compartmentLabel + '\nScheduled: ' + scheduledTime;
+            window.open('mailto:' + userEmail + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body), '_blank');
         });
     }
     
     testNotification() {
-        console.log('🧪 testNotification() called');
         if (!this.state.notificationsEnabled) {
             this.showToast('Please enable notifications first');
             return;
         }
-        
-        const userEmail = localStorage.getItem('notificationEmail');
+        var userEmail = localStorage.getItem('notificationEmail');
         if (!userEmail) {
             this.showToast('Please set up your email first');
             this.showEmailSetup();
             return;
         }
-        
         this.sendEmailNotification(
             'Test Notification',
             'Your notifications are working! You will get reminders 3 minutes before each dose.',
             null
         );
-        
         this.showToast('Test email sent to ' + userEmail);
     }
     
-    showStatus(message, type = '') {
-        const statusDiv = document.getElementById('notificationStatus');
+    showStatus(message, type) {
+        if (typeof type === 'undefined') type = '';
+        var statusDiv = document.getElementById('notificationStatus');
         if (!statusDiv) return;
-        statusDiv.className = `notification-status ${type}`;
-        statusDiv.innerHTML = `<span class="status-message">${message}</span>`;
+        statusDiv.className = 'notification-status ' + type;
+        statusDiv.innerHTML = '<span class="status-message">' + message + '</span>';
     }
     
     showToast(message) {
-        const existing = document.querySelector('.toast-notification');
+        var existing = document.querySelector('.toast-notification');
         if (existing) existing.remove();
-        
-        const toast = document.createElement('div');
+        var toast = document.createElement('div');
         toast.className = 'toast-notification';
         toast.textContent = message;
         document.body.appendChild(toast);
-        setTimeout(() => {
+        setTimeout(function() {
             toast.style.opacity = '0';
             toast.style.transition = 'opacity 0.3s';
-            setTimeout(() => toast.remove(), 300);
+            setTimeout(function() { toast.remove(); }, 300);
         }, 4000);
     }
     
     getScheduleMinutes(scheduleStr) {
-        const d = new Date(scheduleStr);
+        var d = new Date(scheduleStr);
         return d.getHours() * 60 + d.getMinutes();
     }
     
     getCompartmentLabel(compartment) {
-        const labels = { 'A': 'Morning', 'B': 'Noon', 'C': 'Night', 'D': 'Custom' };
+        var labels = { 'A': 'Morning', 'B': 'Noon', 'C': 'Night', 'D': 'Custom' };
         return labels[compartment] || compartment;
     }
     
     formatTime(isoString) {
         if (!isoString) return 'Unknown';
-        const d = new Date(isoString);
+        var d = new Date(isoString);
         return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 }
 
 export function initNotifications(state, onUpdate) {
-    console.log('📧 initNotifications() called');
-    const manager = new NotificationManager(state, onUpdate);
-    console.log('📧 NotificationManager instance created');
+    console.log('initNotifications called');
+    var manager = new NotificationManager(state, onUpdate);
+    console.log('NotificationManager instance created');
     return manager;
 }

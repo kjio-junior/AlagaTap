@@ -8,11 +8,14 @@ export class NotificationManager {
         this.onesignalInitialized = false;
         this.notificationCheckInterval = null;
         this.emailEnabled = false;
+        this.formspreeInitialized = false;
         
-        // Get environment variables
-        this.onesignalAppId = import.meta.env?.VITE_ONESIGNAL_APP_ID || 'YOUR_ONESIGNAL_APP_ID';
-        this.onesignalSafariId = import.meta.env?.VITE_ONEWSIGNAL_SAFARI_ID || 'web.onesignal.auto.1234567890';
-        this.formspreeId = import.meta.env?.VITE_FORMSPREE_ID || 'YOUR_FORM_ID';
+        // Your Formspree endpoint
+        this.formspreeEndpoint = 'https://formspree.io/f/mwlezwlj';
+        
+        // OneSignal config from your snippet
+        this.onesignalAppId = 'd1b45954-e518-45a5-a7b5-df5c5a639826';
+        this.onesignalSafariId = 'web.onesignal.auto.064b44a8-1dd7-4e10-9d87-452ef5b9c9dd';
         
         // Check if email is configured
         this.emailEnabled = localStorage.getItem('notificationEmail') !== null;
@@ -22,8 +25,11 @@ export class NotificationManager {
     }
     
     async init() {
-        // Initialize OneSignal
+        // Initialize OneSignal (already configured in HTML)
         await this.initOneSignal();
+        
+        // Initialize Formspree for email
+        this.initFormspree();
         
         // Check and start notification checker if enabled
         const toggle = document.getElementById('notificationToggle');
@@ -60,47 +66,18 @@ export class NotificationManager {
     // ===== ONESIGNAL SETUP =====
     async initOneSignal() {
         try {
-            // Wait for OneSignal to load
-            if (!window.OneSignal) {
-                console.warn('OneSignal not loaded, waiting...');
-                await new Promise(resolve => {
-                    const checkInterval = setInterval(() => {
-                        if (window.OneSignal) {
-                            clearInterval(checkInterval);
-                            resolve();
-                        }
-                    }, 100);
+            // OneSignal is already initialized via the script in HTML
+            // We just need to wait for it to be ready
+            if (window.OneSignalDeferred) {
+                window.OneSignalDeferred.push(async function(OneSignal) {
+                    console.log('✅ OneSignal initialized');
                 });
             }
             
-            // Initialize OneSignal
-            window.OneSignal = window.OneSignal || [];
-            window.OneSignal.push(() => {
-                OneSignal.init({
-                    appId: this.onesignalAppId,
-                    allowLocalhostAsSecureOrigin: true,
-                    notifyButton: {
-                        enable: false
-                    },
-                    safari_web_id: this.onesignalSafariId
-                });
-            });
-            
             this.onesignalInitialized = true;
-            console.log('✅ OneSignal initialized');
             
             // Check if already subscribed
             await this.checkOneSignalStatus();
-            
-            // Listen for subscription changes
-            window.OneSignal.push(() => {
-                OneSignal.on('subscriptionChange', (isSubscribed) => {
-                    console.log('OneSignal subscription changed:', isSubscribed);
-                    if (isSubscribed) {
-                        this.showStatus('✅ Browser notifications enabled', 'success');
-                    }
-                });
-            });
             
         } catch (error) {
             console.warn('OneSignal init failed:', error);
@@ -115,15 +92,32 @@ export class NotificationManager {
                 return;
             }
             
-            window.OneSignal.push(() => {
-                OneSignal.isPushNotificationsEnabled().then((isEnabled) => {
-                    if (isEnabled) {
-                        this.showStatus('✅ Browser notifications active', 'success');
-                    }
-                    resolve(isEnabled);
-                });
+            window.OneSignalDeferred?.push(async function(OneSignal) {
+                const isEnabled = await OneSignal.Notifications.permission;
+                if (isEnabled) {
+                    this.showStatus('✅ Browser notifications active', 'success');
+                }
+                resolve(isEnabled);
             });
         });
+    }
+    
+    // ===== FORMSPREE (EMAIL) SETUP =====
+    initFormspree() {
+        // Load Formspree Ajax library if not already loaded
+        if (!window.formspree) {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/@formspree/ajax@1';
+            script.defer = true;
+            document.head.appendChild(script);
+            
+            script.onload = () => {
+                this.formspreeInitialized = true;
+                console.log('✅ Formspree initialized');
+            };
+        } else {
+            this.formspreeInitialized = true;
+        }
     }
     
     // ===== EMAIL NOTIFICATIONS =====
@@ -139,26 +133,75 @@ export class NotificationManager {
                 <p>Enter your email address to receive medication reminders (optional).<br>
                 <small style="color: var(--text-muted);">We'll only use this for sending reminders.</small></p>
                 <div class="email-input-group">
-                    <input type="email" id="emailInput" placeholder="your@email.com" />
+                    <input type="email" id="emailInput" placeholder="your@email.com" required />
                     <button id="emailSetupBtn" class="btn-primary">Save</button>
                 </div>
                 <button class="setup-skip" id="emailSkipBtn">Skip for now</button>
+                <div id="emailSetupStatus" style="margin-top:8px; font-size:13px; display:none;"></div>
             </div>
         `;
         document.body.appendChild(modal);
         
-        document.getElementById('emailSetupBtn').addEventListener('click', () => {
+        // Handle form submission with Formspree
+        document.getElementById('emailSetupBtn').addEventListener('click', async () => {
             const email = document.getElementById('emailInput').value.trim();
-            if (email && email.includes('@')) {
-                localStorage.setItem('notificationEmail', email);
-                localStorage.setItem('emailSetupShown', 'true');
-                this.emailEnabled = true;
+            const statusDiv = document.getElementById('emailSetupStatus');
+            
+            if (!email || !email.includes('@')) {
+                statusDiv.style.display = 'block';
+                statusDiv.style.color = '#FF5252';
+                statusDiv.textContent = '⚠️ Please enter a valid email address.';
+                return;
+            }
+            
+            // Save email locally first
+            localStorage.setItem('notificationEmail', email);
+            localStorage.setItem('emailSetupShown', 'true');
+            this.emailEnabled = true;
+            
+            // Send test email via Formspree
+            statusDiv.style.display = 'block';
+            statusDiv.style.color = '#0052CC';
+            statusDiv.textContent = '📧 Sending test email...';
+            
+            try {
+                // Using Formspree Ajax
+                if (window.formspree) {
+                    window.formspree('initForm', {
+                        formElement: '#emailSetupForm',
+                        formId: 'mwlezwlj'
+                    });
+                }
+                
+                // Direct fetch as fallback
+                const response = await fetch(this.formspreeEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        subject: 'AlagaTap: Test Notification',
+                        message: 'Your medication reminders are set up! You will receive notifications 3 minutes before each dose.'
+                    })
+                });
+                
+                if (response.ok) {
+                    statusDiv.style.color = '#00E5A3';
+                    statusDiv.textContent = '✅ Test email sent to ' + email;
+                    modal.remove();
+                    this.showStatus('✅ Email notifications enabled', 'success');
+                    this.showToast('📧 Test email sent to ' + email);
+                } else {
+                    throw new Error('Failed to send email');
+                }
+            } catch (error) {
+                console.warn('Email send failed, using fallback:', error);
+                // Fallback: open email client
+                window.location.href = `mailto:${email}?subject=AlagaTap%20Test&body=Your%20medication%20reminders%20are%20set%20up!`;
                 modal.remove();
-                this.showStatus('✅ Email notifications enabled', 'success');
-                this.sendTestEmail();
-                this.showToast('📧 Test email sent to ' + email);
-            } else {
-                alert('Please enter a valid email address.');
+                this.showToast('📧 Email client opened. Please send the test email.');
             }
         });
         
@@ -166,24 +209,6 @@ export class NotificationManager {
             localStorage.setItem('emailSetupShown', 'true');
             modal.remove();
             this.showStatus('Email notifications skipped', '');
-        });
-    }
-    
-    sendTestEmail() {
-        const email = localStorage.getItem('notificationEmail');
-        if (!email) return;
-        
-        fetch(`https://formspree.io/f/${this.formspreeId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email: email,
-                subject: 'AlagaTap: Test Notification',
-                message: 'Your medication reminders are set up! You will receive notifications 3 minutes before each dose.'
-            })
-        }).catch(() => {
-            // Fallback: open email client
-            window.location.href = `mailto:${email}?subject=AlagaTap%20Test&body=Your%20medication%20reminders%20are%20set%20up!`;
         });
     }
     
@@ -271,19 +296,19 @@ export class NotificationManager {
     sendOneSignal(title, message, medication) {
         if (!window.OneSignal) return;
         
-        window.OneSignal.push(() => {
-            OneSignal.sendSelfNotification(
-                title,
-                message,
-                null,
-                {
-                    medicationId: medication ? medication.id : null
-                }
-            ).then(() => {
+        window.OneSignalDeferred?.push(async function(OneSignal) {
+            try {
+                await OneSignal.Notifications.addNotification({
+                    title: title,
+                    body: message,
+                    data: {
+                        medicationId: medication ? medication.id : null
+                    }
+                });
                 console.log('📱 OneSignal notification sent:', title);
-            }).catch(err => {
+            } catch (err) {
                 console.warn('OneSignal send failed:', err);
-            });
+            }
         });
     }
     
@@ -294,14 +319,24 @@ export class NotificationManager {
         const subject = `AlagaTap: ${title}`;
         const body = `${message}\n\n---\nLogged by: Self-Reported\nTime: ${new Date().toLocaleString()}\nMedication: ${medication ? medication.name : 'Unknown'}`;
         
-        fetch(`https://formspree.io/f/${this.formspreeId}`, {
+        // Send via Formspree
+        fetch(this.formspreeEndpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
             body: JSON.stringify({
                 email: email,
                 subject: subject,
                 message: body
             })
+        }).then(response => {
+            if (response.ok) {
+                console.log('📧 Email notification sent:', title);
+            } else {
+                throw new Error('Formspree error');
+            }
         }).catch(() => {
             // Fallback: open email client
             window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;

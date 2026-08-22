@@ -17,6 +17,19 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
     
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script>
+        // Initialize EmailJS with your Public Key
+        (function() {
+            try {
+                emailjs.init('mCeqJyqUw5x1XdUK2');
+                console.log('✅ EmailJS initialized with public key');
+            } catch(e) {
+                console.warn('EmailJS init failed:', e);
+            }
+        })();
+    </script>
+    
     <!-- Custom Styles -->
     <link rel="stylesheet" href="/css/styles.css" />
     

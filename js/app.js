@@ -5,7 +5,7 @@ import {
     getStatusText, getLastDoseTime, getCompartmentLabel,
     getAdherenceStats, getLogsForSummary 
 } from './utils.js';
-import { initNotifications } from './notifications.js';
+import { initNotifications } from './notifications.js';  // <-- THIS MUST BE HERE
 import { ShareManager } from './share.js';
 import {
     renderHero, renderCompartmentList, renderWarnings, 
@@ -68,10 +68,7 @@ let cooldownInterval = null;
 let selectedMedId = null;
 let notificationManager = null;
 
-// js/app.js - Main application
-// ... (all imports remain the same)
-
-// ===== THEME MANAGEMENT - RESTORED ORIGINAL WORKING VERSION =====
+// ===== THEME MANAGEMENT =====
 function setTheme(theme) {
     state.theme = theme;
     document.documentElement.setAttribute('data-theme', theme);
@@ -85,8 +82,6 @@ function updateThemeIcon() {
         ? `<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />`
         : `<path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />`;
 }
-
-// ... (rest of app.js remains the same)
 
 // Render all components
 function renderAll() {
@@ -216,7 +211,7 @@ function openConfirmModal(medId) {
     if (!med) return;
     
     if (state.cooldownUntil && Date.now() < state.cooldownUntil) {
-        showToast('⏳ Cooldown active. Please wait.');
+        showToast('Cooldown active. Please wait.');
         return;
     }
     
@@ -306,7 +301,7 @@ function importData(file) {
                 state = imported;
                 saveState(state);
                 renderAll();
-                showToast('✅ Data imported successfully.');
+                showToast('Data imported successfully.');
             } else {
                 alert('Invalid backup file format.');
             }
@@ -332,12 +327,11 @@ function showToast(message) {
     }, 3000);
 }
 
-// Add email setup inline in notification section
+// Add email setup inline
 function addEmailSetupUI() {
     const notificationSection = document.getElementById('notificationSection');
     if (!notificationSection) return;
     
-    // Check if already exists
     if (document.getElementById('emailSetupInline')) return;
     
     const emailDiv = document.createElement('div');
@@ -345,9 +339,9 @@ function addEmailSetupUI() {
     emailDiv.className = 'email-setup-inline';
     emailDiv.innerHTML = `
         <span class="email-label">
-            📧 Email: 
+            Email: 
             <span class="email-status" id="emailStatusDisplay">
-                ${localStorage.getItem('notificationEmail') ? '✅ ' + localStorage.getItem('notificationEmail') : 'Not set'}
+                ${localStorage.getItem('notificationEmail') ? '✓ ' + localStorage.getItem('notificationEmail') : 'Not set'}
             </span>
         </span>
         <button id="emailSetupBtnInline" class="btn-secondary btn-sm">
@@ -365,7 +359,7 @@ function addEmailSetupUI() {
     });
 }
 
-// Initialize
+// ===== INITIALIZE =====
 function init() {
     const shareManager = new ShareManager(state, elements);
     const sharedData = shareManager.loadSharedData();
@@ -476,7 +470,7 @@ function init() {
         const link = elements.shareLink.textContent;
         if (link && link !== 'Generating link...') {
             navigator.clipboard?.writeText(link).then(() => {
-                showToast('✅ Link copied to clipboard!');
+                showToast('Link copied to clipboard!');
             }).catch(() => {
                 const textArea = document.createElement('textarea');
                 textArea.value = link;
@@ -484,7 +478,7 @@ function init() {
                 textArea.select();
                 document.execCommand('copy');
                 textArea.remove();
-                showToast('✅ Link copied!');
+                showToast('Link copied!');
             });
         }
     });
@@ -494,7 +488,7 @@ function init() {
         const shareUrl = shareManager.generateShareLink();
         if (shareUrl) {
             elements.shareLink.textContent = shareUrl;
-            showToast('🔄 New share link generated');
+            showToast('New share link generated');
         }
     });
     
@@ -502,7 +496,7 @@ function init() {
     elements.shareHistoryBtn.addEventListener('click', () => {
         const history = shareManager.getShareHistory();
         if (history.length === 0) {
-            showToast('📭 No share history yet');
+            showToast('No share history yet');
             return;
         }
         const historyText = history.map((h, i) => 
@@ -539,10 +533,11 @@ function init() {
         });
     });
     
-    // Initialize Notifications
+    // ===== INITIALIZE NOTIFICATIONS - EMAILJS =====
     notificationManager = initNotifications(state, saveState);
+    console.log('✅ NotificationManager initialized');
     
-    // Add email setup UI after notifications are initialized
+    // Add email setup UI
     setTimeout(() => {
         addEmailSetupUI();
     }, 500);

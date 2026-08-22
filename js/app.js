@@ -1,5 +1,5 @@
-// js/app.js - Main application entry point
-import { STORAGE_KEY, loadState, saveState, generateId } from './state.js';
+// js/app.js - Main application
+import { loadState, saveState, generateId } from './state.js';
 import { 
     formatTime, formatDateTime, getTodayStr, isOverdue,
     getStatusText, getLastDoseTime, getCompartmentLabel,
@@ -15,63 +15,42 @@ import {
 
 // DOM Elements
 const elements = {
-    // Theme
     themeToggle: document.getElementById('themeToggle'),
     themeIcon: document.getElementById('themeIcon'),
-    
-    // Hero
     statusDot: document.getElementById('statusDot'),
     statusText: document.getElementById('statusText'),
     heroTimestamp: document.getElementById('heroTimestamp'),
     recordDoseBtn: document.getElementById('recordDoseBtn'),
     cooldownIndicator: document.getElementById('cooldownIndicator'),
     cooldownTimer: document.getElementById('cooldownTimer'),
-    
-    // Warnings
     warningBanner: document.getElementById('warningBanner'),
     warningText: document.getElementById('warningText'),
     refillAlert: document.getElementById('refillAlert'),
     refillMessage: document.getElementById('refillMessage'),
-    
-    // Compartments
     compartmentList: document.getElementById('compartmentList'),
     addMedicationBtn: document.getElementById('addMedicationBtn'),
-    
-    // History
     historyToggle: document.getElementById('historyToggle'),
     historyList: document.getElementById('historyList'),
     historyArrow: document.getElementById('historyArrow'),
-    
-    // Data
     exportBtn: document.getElementById('exportBtn'),
     importBtn: document.getElementById('importBtn'),
     importFileInput: document.getElementById('importFileInput'),
-    
-    // Modals
     medicationModal: document.getElementById('medicationModal'),
     confirmModal: document.getElementById('confirmModal'),
     summaryModal: document.getElementById('summaryModal'),
     caregiverModal: document.getElementById('caregiverModal'),
-    
-    // Summary
     totalScheduled: document.getElementById('totalScheduled'),
     totalReported: document.getElementById('totalReported'),
     adherenceRate: document.getElementById('adherenceRate'),
     summaryHistory: document.getElementById('summaryHistory'),
     exportSummaryBtn: document.getElementById('exportSummaryBtn'),
-    
-    // Caregiver
     shareLink: document.getElementById('shareLink'),
     refreshShareLink: document.getElementById('refreshShareLink'),
     copyLinkBtn: document.getElementById('copyLinkBtn'),
     shareHistoryBtn: document.getElementById('shareHistoryBtn'),
     qrCode: document.getElementById('qrCode'),
-    
-    // Confirm
     confirmDetails: document.getElementById('confirmDetails'),
     confirmLogBtn: document.getElementById('confirmLogBtn'),
-    
-    // Medication form
     modalTitle: document.getElementById('modalTitle'),
     editId: document.getElementById('editId'),
     medName: document.getElementById('medName'),
@@ -87,9 +66,7 @@ let state = loadState();
 let historyOpen = false;
 let cooldownInterval = null;
 let selectedMedId = null;
-
-// Initialize Share Manager
-const shareManager = new ShareManager(state, elements);
+let notificationManager = null;
 
 // Theme management
 function setTheme(theme) {
@@ -164,21 +141,17 @@ function logDose(medId) {
     const med = state.medications.find(m => m.id === medId);
     if (!med) return;
     
-    // Check cooldown
     if (state.cooldownUntil && Date.now() < state.cooldownUntil) {
         return;
     }
     
-    // Check inventory
     if (med.inventory <= 0) {
         alert('No doses remaining. Please refill this medication.');
         return;
     }
     
-    // Decrement inventory
     med.inventory = Math.max(0, med.inventory - 1);
     
-    // Add log
     state.logs.push({
         timestamp: new Date().toISOString(),
         medicationId: med.id,
@@ -187,8 +160,6 @@ function logDose(medId) {
     });
     
     state.lastDoseTimestamp = new Date().toISOString();
-    
-    // Set cooldown (5 minutes)
     state.cooldownUntil = Date.now() + 5 * 60 * 1000;
     
     saveState(state);
@@ -197,7 +168,6 @@ function logDose(medId) {
     closeModal(elements.confirmModal);
 }
 
-// Cooldown timer
 function startCooldownTimer() {
     if (cooldownInterval) clearInterval(cooldownInterval);
     cooldownInterval = setInterval(() => {
@@ -214,7 +184,6 @@ function startCooldownTimer() {
 function checkMidnightReset() {
     const today = getTodayStr();
     if (state.lastResetDate !== today) {
-        // Ask user about medication frequency
         const frequency = prompt(
             'How often is your medication taken?\nEnter: daily, weekly, or monthly',
             state.scheduleFrequency || 'daily'
@@ -241,9 +210,8 @@ function openConfirmModal(medId) {
     const med = state.medications.find(m => m.id === medId);
     if (!med) return;
     
-    // Check cooldown
     if (state.cooldownUntil && Date.now() < state.cooldownUntil) {
-        shareManager.showToast('⏳ Cooldown active. Please wait.');
+        showToast('⏳ Cooldown active. Please wait.');
         return;
     }
     
@@ -274,7 +242,6 @@ function resetMedicationForm() {
     elements.medName.value = '';
     elements.medDosage.value = '';
     elements.medCompartment.value = 'A';
-    // Set default schedule to now
     const now = new Date();
     const offset = now.getTimezoneOffset() * 60000;
     const localISOTime = (new Date(Date.now() - offset)).toISOString().slice(0, 16);
@@ -334,7 +301,7 @@ function importData(file) {
                 state = imported;
                 saveState(state);
                 renderAll();
-                shareManager.showToast('✅ Data imported successfully.');
+                showToast('✅ Data imported successfully.');
             } else {
                 alert('Invalid backup file format.');
             }
@@ -345,18 +312,31 @@ function importData(file) {
     reader.readAsText(file);
 }
 
-// Event Listeners
+function showToast(message) {
+    const existing = document.querySelector('.toast-notification');
+    if (existing) existing.remove();
+    
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// Initialize
 function init() {
-    // Check if this is a shared view
+    const shareManager = new ShareManager(state, elements);
     const sharedData = shareManager.loadSharedData();
     if (sharedData) {
         shareManager.renderReadOnlyView(sharedData.data);
-        // Still initialize theme
         setTheme(state.theme || 'light');
-        return; // Skip normal initialization
+        return;
     }
     
-    // Normal initialization
     setTheme(state.theme || 'light');
     
     // Theme toggle
@@ -364,13 +344,12 @@ function init() {
         setTheme(state.theme === 'light' ? 'dark' : 'light');
     });
     
-    // Record dose main button
+    // Record dose
     elements.recordDoseBtn.addEventListener('click', () => {
         if (state.medications.length === 0) {
             alert('Please add a medication first.');
             return;
         }
-        // Find first pending medication
         const today = getTodayStr();
         const pending = state.medications.find(med => 
             !state.logs.some(l => l.medicationId === med.id && l.timestamp.startsWith(today))
@@ -378,7 +357,6 @@ function init() {
         if (pending) {
             openConfirmModal(pending.id);
         } else {
-            // All logged, use first medication
             openConfirmModal(state.medications[0].id);
         }
     });
@@ -432,7 +410,6 @@ function init() {
         const shareUrl = shareManager.generateShareLink();
         if (shareUrl) {
             elements.shareLink.textContent = shareUrl;
-            // Generate QR code
             const qrContainer = elements.qrCode;
             if (window.QRCode && qrContainer) {
                 qrContainer.innerHTML = '';
@@ -461,16 +438,15 @@ function init() {
         const link = elements.shareLink.textContent;
         if (link && link !== 'Generating link...') {
             navigator.clipboard?.writeText(link).then(() => {
-                shareManager.showToast('✅ Link copied to clipboard!');
+                showToast('✅ Link copied to clipboard!');
             }).catch(() => {
-                // Fallback
                 const textArea = document.createElement('textarea');
                 textArea.value = link;
                 document.body.appendChild(textArea);
                 textArea.select();
                 document.execCommand('copy');
                 textArea.remove();
-                shareManager.showToast('✅ Link copied!');
+                showToast('✅ Link copied!');
             });
         }
     });
@@ -480,7 +456,7 @@ function init() {
         const shareUrl = shareManager.generateShareLink();
         if (shareUrl) {
             elements.shareLink.textContent = shareUrl;
-            shareManager.showToast('🔄 New share link generated');
+            showToast('🔄 New share link generated');
         }
     });
     
@@ -488,7 +464,7 @@ function init() {
     elements.shareHistoryBtn.addEventListener('click', () => {
         const history = shareManager.getShareHistory();
         if (history.length === 0) {
-            shareManager.showToast('📭 No share history yet');
+            showToast('📭 No share history yet');
             return;
         }
         const historyText = history.map((h, i) => 
@@ -524,24 +500,18 @@ function init() {
             if (e.target === modal) closeModal(modal);
         });
     });
-
-            // Test notification button
+    
+    // Initialize Notifications
+    notificationManager = initNotifications(state, saveState);
+    
+    // Test notification button
     document.getElementById('testNotifBtn')?.addEventListener('click', () => {
-        if (window.testAlagaTapNotification) {
-            window.testAlagaTapNotification();
+        if (notificationManager) {
+            notificationManager.testNotification();
         } else {
-            showToast('⚠️ Loading notification system...');
-            setTimeout(() => {
-                if (window.testAlagaTapNotification) {
-                    window.testAlagaTapNotification();
-                } else {
-                    alert('Please enable notifications first using the toggle switch.');
-                }
-            }, 1000);
+            alert('Notification system is loading. Please try again.');
         }
     });
-    // Initialize notifications
-    initNotifications(state, saveState);
     
     // Check midnight reset
     checkMidnightReset();
@@ -550,12 +520,11 @@ function init() {
     renderAll();
     startCooldownTimer();
     
-    // Periodic refresh (every 30 seconds)
+    // Periodic refresh
     setInterval(() => {
         renderAll();
         checkMidnightReset();
     }, 30000);
 }
 
-// Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', init);

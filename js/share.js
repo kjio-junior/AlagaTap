@@ -1,6 +1,4 @@
-// js/share.js - URL-based sharing with compression for GitHub Pages
-// Uses LZString for compression (loaded from CDN)
-
+// js/share.js - URL-based sharing with compression for GitHub Pages/Vercel
 export class ShareManager {
     constructor(state, elements) {
         this.state = state;
@@ -8,9 +6,7 @@ export class ShareManager {
         this.shareCode = null;
     }
 
-    // Generate a shareable URL with compressed data
     generateShareLink() {
-        // Only share essential data (reduce URL size)
         const shareData = {
             m: this.state.medications.map(m => ({
                 n: m.name,
@@ -30,29 +26,21 @@ export class ShareManager {
         };
 
         try {
-            // Compress with LZString (available via CDN)
             const jsonString = JSON.stringify(shareData);
             const compressed = window.LZString.compressToEncodedURIComponent(jsonString);
-            
-            // Build the shareable URL
             const baseUrl = window.location.origin + window.location.pathname;
             const shareUrl = `${baseUrl}?share=${compressed}`;
             
-            // Generate a short code for display
             this.shareCode = 'share_' + Math.random().toString(36).substring(2, 10);
-            
-            // Store in localStorage for history
             this.saveShareHistory(shareUrl, this.shareCode);
             
             return shareUrl;
         } catch (error) {
             console.error('Failed to generate share link:', error);
-            // Fallback: use simple base64 encoding
             return this.generateSimpleShareLink();
         }
     }
 
-    // Fallback: Simple base64 encoding (less efficient but works)
     generateSimpleShareLink() {
         try {
             const data = {
@@ -77,11 +65,9 @@ export class ShareManager {
         }
     }
 
-    // Load shared data from URL
     loadSharedData() {
         const params = new URLSearchParams(window.location.search);
         
-        // Check for compressed share
         const compressed = params.get('share');
         if (compressed) {
             try {
@@ -95,7 +81,6 @@ export class ShareManager {
             }
         }
         
-        // Check for simple base64 share
         const simple = params.get('sharedata');
         if (simple) {
             try {
@@ -109,11 +94,9 @@ export class ShareManager {
         return null;
     }
 
-    // Render read-only view of shared data
     renderReadOnlyView(sharedData) {
         const container = document.getElementById('app');
         
-        // Add read-only banner
         const banner = document.createElement('div');
         banner.className = 'readonly-banner';
         banner.innerHTML = `
@@ -133,7 +116,6 @@ export class ShareManager {
         `;
         container.prepend(banner);
 
-        // Render medications (read-only)
         const medList = document.getElementById('compartmentList');
         if (medList && sharedData.m) {
             medList.innerHTML = sharedData.m.map(m => `
@@ -153,7 +135,6 @@ export class ShareManager {
             medList.innerHTML = '<div class="text-center text-gray-500 py-4">No medications in shared data</div>';
         }
 
-        // Render logs (read-only)
         const historyList = document.getElementById('historyList');
         if (historyList && sharedData.l && sharedData.l.length > 0) {
             historyList.innerHTML = sharedData.l.map(l => `
@@ -169,14 +150,12 @@ export class ShareManager {
             historyList.innerHTML = '<div class="text-center text-gray-500 py-4">No logs in shared data</div>';
         }
 
-        // Disable all interactive elements
         document.querySelectorAll('button:not(.modal-close):not([onclick])').forEach(btn => {
             btn.disabled = true;
             btn.style.opacity = '0.5';
             btn.style.cursor = 'not-allowed';
         });
 
-        // Update hero status for read-only
         const statusText = document.getElementById('statusText');
         const statusDot = document.getElementById('statusDot');
         const heroTimestamp = document.getElementById('heroTimestamp');
@@ -188,7 +167,6 @@ export class ShareManager {
             heroTimestamp.textContent = `Shared on ${this.formatDateTime(sharedData.gen || new Date().toISOString())}`;
         }
 
-        // Hide record button
         const recordBtn = document.getElementById('recordDoseBtn');
         if (recordBtn) {
             recordBtn.disabled = true;
@@ -196,11 +174,9 @@ export class ShareManager {
             recordBtn.style.cursor = 'not-allowed';
         }
 
-        // Show message
         this.showToast('📋 Viewing shared medication schedule');
     }
 
-    // Save share history
     saveShareHistory(url, code) {
         const history = JSON.parse(localStorage.getItem('alagaTapShareHistory') || '[]');
         history.unshift({
@@ -209,17 +185,14 @@ export class ShareManager {
             date: new Date().toISOString(),
             medications: this.state.medications.length
         });
-        // Keep only last 10
         if (history.length > 10) history.pop();
         localStorage.setItem('alagaTapShareHistory', JSON.stringify(history));
     }
 
-    // Get share history
     getShareHistory() {
         return JSON.parse(localStorage.getItem('alagaTapShareHistory') || '[]');
     }
 
-    // Format helpers
     formatTime(isoString) {
         if (!isoString) return '--';
         const d = new Date(isoString);
@@ -228,12 +201,16 @@ export class ShareManager {
 
     formatDateTime(isoString) {
         if (!isoString) return '--';
+        return `${this.formatDate(isoString)} at ${this.formatTime(isoString)}`;
+    }
+
+    formatDate(isoString) {
+        if (!isoString) return '--';
         const d = new Date(isoString);
-        return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + this.formatTime(isoString);
+        return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }
 
     showToast(message) {
-        // Remove existing toast
         const existing = document.querySelector('.toast-notification');
         if (existing) existing.remove();
         

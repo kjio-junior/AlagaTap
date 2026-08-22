@@ -1,486 +1,368 @@
-// js/notifications.js - Complete with PWA support for mobile
+// js/notifications.js - OneSignal + Email notification system
+// No installation required! Works on mobile and desktop
 
-let notificationInterval = null;
-let notificationTimeout = null;
-let serviceWorkerRegistered = false;
-let pushSubscription = null;
-
-export async function initNotifications(state, onUpdate) {
-    const toggle = document.getElementById('notificationToggle');
-    if (!toggle) return;
-    
-    // Register Service Worker for PWA support
-    await registerServiceWorker();
-    
-    // Restore state
-    toggle.checked = state.notificationsEnabled || false;
-    
-    // Request permission if enabled
-    if (toggle.checked) {
-        await requestPermission();
-        startNotificationChecker(state, onUpdate);
-    }
-    
-    toggle.addEventListener('change', async (e) => {
-        const enabled = e.target.checked;
-        state.notificationsEnabled = enabled;
-        onUpdate(state);
+export class NotificationManager {
+    constructor(state, onUpdate) {
+        this.state = state;
+        this.onUpdate = onUpdate;
+        this.onesignalInitialized = false;
+        this.notificationCheckInterval = null;
+        this.emailEnabled = false;
         
-        if (enabled) {
-            const permission = await requestPermission();
-            if (permission === 'granted') {
-                startNotificationChecker(state, onUpdate);
-                showToast('🔔 Reminders enabled! You\'ll get notified 3 minutes before each dose.');
-                // Ask to install as PWA for better mobile support
-                promptPWAInstall();
-            } else {
-                toggle.checked = false;
-                state.notificationsEnabled = false;
-                onUpdate(state);
-                showToast('⚠️ Please allow notifications in your browser settings.');
-            }
-        } else {
-            stopNotificationChecker();
-            showToast('🔕 Reminders disabled');
-        }
-    });
-    
-    // Check when page becomes visible
-    document.addEventListener('visibilitychange', () => {
-        if (!document.hidden && state.notificationsEnabled) {
-            checkScheduledDoses(state, onUpdate);
-        }
-    });
-    
-    // Handle messages from service worker
-    navigator.serviceWorker?.addEventListener('message', (event) => {
-        if (event.data.type === 'HIGHLIGHT_MEDICATION') {
-            highlightMedication(event.data.medicationId);
-        }
-    });
-}
-
-async function registerServiceWorker() {
-    if (!('serviceWorker' in navigator)) {
-        console.warn('Service Workers not supported');
-        return false;
-    }
-    
-    try {
-        const registration = await navigator.serviceWorker.register('/sw.js');
-        console.log('Service Worker registered:', registration);
-        serviceWorkerRegistered = true;
+        // Get environment variables
+        this.onesignalAppId = import.meta.env?.VITE_ONESIGNAL_APP_ID || 'YOUR_ONESIGNAL_APP_ID';
+        this.onesignalSafariId = import.meta.env?.VITE_ONEWSIGNAL_SAFARI_ID || 'web.onesignal.auto.1234567890';
+        this.formspreeId = import.meta.env?.VITE_FORMSPREE_ID || 'YOUR_FORM_ID';
         
-        // Check for existing push subscription
-        pushSubscription = await registration.pushManager.getSubscription();
-        console.log('Push subscription:', pushSubscription ? 'Active' : 'None');
+        // Check if email is configured
+        this.emailEnabled = localStorage.getItem('notificationEmail') !== null;
         
-        return true;
-    } catch (error) {
-        console.warn('Service Worker registration failed:', error);
-        return false;
-    }
-}
-
-async function requestPermission() {
-    if (!('Notification' in window)) {
-        console.warn('Notifications not supported');
-        return 'denied';
+        // Initialize
+        this.init();
     }
     
-    if (Notification.permission === 'granted') {
-        return 'granted';
+    async init() {
+        // Initialize OneSignal
+        await this.initOneSignal();
+        
+        // Check and start notification checker if enabled
+        const toggle = document.getElementById('notificationToggle');
+        if (toggle) {
+            toggle.checked = this.state.notificationsEnabled || false;
+            toggle.addEventListener('change', (e) => {
+                const enabled = e.target.checked;
+                this.state.notificationsEnabled = enabled;
+                this.onUpdate(this.state);
+                
+                if (enabled) {
+                    this.startChecker();
+                    this.showStatus('✅ Notifications enabled', 'success');
+                } else {
+                    this.stopChecker();
+                    this.showStatus('🔕 Notifications disabled', '');
+                }
+            });
+        }
+        
+        // If enabled, start checker
+        if (this.state.notificationsEnabled) {
+            this.startChecker();
+        }
+        
+        // Show email setup if not configured and notifications are enabled
+        if (this.state.notificationsEnabled && !this.emailEnabled) {
+            setTimeout(() => {
+                this.showEmailSetup();
+            }, 3000);
+        }
     }
     
-    if (Notification.permission === 'default') {
+    // ===== ONESIGNAL SETUP =====
+    async initOneSignal() {
         try {
-            const permission = await Notification.requestPermission();
-            console.log('Notification permission:', permission);
-            
-            if (permission === 'granted' && serviceWorkerRegistered) {
-                // Subscribe to push notifications
-                await subscribeToPush();
+            // Wait for OneSignal to load
+            if (!window.OneSignal) {
+                console.warn('OneSignal not loaded, waiting...');
+                await new Promise(resolve => {
+                    const checkInterval = setInterval(() => {
+                        if (window.OneSignal) {
+                            clearInterval(checkInterval);
+                            resolve();
+                        }
+                    }, 100);
+                });
             }
             
-            return permission;
+            // Initialize OneSignal
+            window.OneSignal = window.OneSignal || [];
+            window.OneSignal.push(() => {
+                OneSignal.init({
+                    appId: this.onesignalAppId,
+                    allowLocalhostAsSecureOrigin: true,
+                    notifyButton: {
+                        enable: false
+                    },
+                    safari_web_id: this.onesignalSafariId
+                });
+            });
+            
+            this.onesignalInitialized = true;
+            console.log('✅ OneSignal initialized');
+            
+            // Check if already subscribed
+            await this.checkOneSignalStatus();
+            
+            // Listen for subscription changes
+            window.OneSignal.push(() => {
+                OneSignal.on('subscriptionChange', (isSubscribed) => {
+                    console.log('OneSignal subscription changed:', isSubscribed);
+                    if (isSubscribed) {
+                        this.showStatus('✅ Browser notifications enabled', 'success');
+                    }
+                });
+            });
+            
         } catch (error) {
-            console.warn('Permission request failed:', error);
-            return 'denied';
+            console.warn('OneSignal init failed:', error);
+            this.showStatus('⚠️ Browser notifications unavailable', 'error');
         }
     }
     
-    return Notification.permission;
-}
-
-async function subscribeToPush() {
-    if (!serviceWorkerRegistered || !('PushManager' in window)) {
-        return null;
+    async checkOneSignalStatus() {
+        return new Promise((resolve) => {
+            if (!window.OneSignal) {
+                resolve(false);
+                return;
+            }
+            
+            window.OneSignal.push(() => {
+                OneSignal.isPushNotificationsEnabled().then((isEnabled) => {
+                    if (isEnabled) {
+                        this.showStatus('✅ Browser notifications active', 'success');
+                    }
+                    resolve(isEnabled);
+                });
+            });
+        });
     }
     
-    try {
-        const registration = await navigator.serviceWorker.ready;
-        const subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array('BEl62iUYgUj0b8fUwQnV9hZmqE4WXhZ3oVXyA7bK8dL5mN6oP7qR8sT9uV0wX1yZ2aB3cD4eF5gH6iJ7kL8')
+    // ===== EMAIL NOTIFICATIONS =====
+    showEmailSetup() {
+        // Check if already shown or skipped
+        if (localStorage.getItem('emailSetupShown') === 'true') return;
+        
+        const modal = document.createElement('div');
+        modal.className = 'email-setup-modal';
+        modal.innerHTML = `
+            <div class="email-setup-content">
+                <h3>📧 Get Email Reminders</h3>
+                <p>Enter your email address to receive medication reminders (optional).<br>
+                <small style="color: var(--text-muted);">We'll only use this for sending reminders.</small></p>
+                <div class="email-input-group">
+                    <input type="email" id="emailInput" placeholder="your@email.com" />
+                    <button id="emailSetupBtn" class="btn-primary">Save</button>
+                </div>
+                <button class="setup-skip" id="emailSkipBtn">Skip for now</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        document.getElementById('emailSetupBtn').addEventListener('click', () => {
+            const email = document.getElementById('emailInput').value.trim();
+            if (email && email.includes('@')) {
+                localStorage.setItem('notificationEmail', email);
+                localStorage.setItem('emailSetupShown', 'true');
+                this.emailEnabled = true;
+                modal.remove();
+                this.showStatus('✅ Email notifications enabled', 'success');
+                this.sendTestEmail();
+                this.showToast('📧 Test email sent to ' + email);
+            } else {
+                alert('Please enter a valid email address.');
+            }
         });
         
-        pushSubscription = subscription;
-        console.log('Push subscription successful:', subscription);
+        document.getElementById('emailSkipBtn').addEventListener('click', () => {
+            localStorage.setItem('emailSetupShown', 'true');
+            modal.remove();
+            this.showStatus('Email notifications skipped', '');
+        });
+    }
+    
+    sendTestEmail() {
+        const email = localStorage.getItem('notificationEmail');
+        if (!email) return;
         
-        // Store subscription in localStorage
-        localStorage.setItem('pushSubscription', JSON.stringify(subscription));
+        fetch(`https://formspree.io/f/${this.formspreeId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: email,
+                subject: 'AlagaTap: Test Notification',
+                message: 'Your medication reminders are set up! You will receive notifications 3 minutes before each dose.'
+            })
+        }).catch(() => {
+            // Fallback: open email client
+            window.location.href = `mailto:${email}?subject=AlagaTap%20Test&body=Your%20medication%20reminders%20are%20set%20up!`;
+        });
+    }
+    
+    // ===== NOTIFICATION CHECKER =====
+    startChecker() {
+        this.stopChecker();
         
-        return subscription;
-    } catch (error) {
-        console.warn('Push subscription failed:', error);
-        return null;
-    }
-}
-
-function urlBase64ToUint8Array(base64String) {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-    for (let i = 0; i < rawData.length; ++i) {
-        outputArray[i] = rawData.charCodeAt(i);
-    }
-    return outputArray;
-}
-
-function promptPWAInstall() {
-    // Check if already installed
-    if (window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches) {
-        return;
+        // Check every 30 seconds
+        this.notificationCheckInterval = setInterval(() => {
+            this.checkScheduledDoses();
+        }, 30000);
+        
+        // Check immediately
+        this.checkScheduledDoses();
     }
     
-    // Check if we've prompted before
-    if (localStorage.getItem('pwaPromptShown')) {
-        return;
-    }
-    
-    // Show install prompt
-    const banner = document.createElement('div');
-    banner.className = 'pwa-install-banner';
-    banner.style.cssText = `
-        position: fixed;
-        bottom: 80px;
-        left: 16px;
-        right: 16px;
-        background: white;
-        border-radius: 16px;
-        padding: 16px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-        z-index: 999;
-        border: 2px solid #0052CC;
-        max-width: 400px;
-        margin: 0 auto;
-    `;
-    banner.innerHTML = `
-        <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
-            <span style="font-size:28px;">📱</span>
-            <div>
-                <h4 style="font-weight:600; margin:0; font-size:16px;">Install for Better Reminders</h4>
-                <p style="margin:4px 0 0; font-size:13px; color:#64748b;">Get notifications even when the app is closed</p>
-            </div>
-        </div>
-        <div style="display:flex; gap:8px;">
-            <button onclick="this.closest('.pwa-install-banner').remove(); localStorage.setItem('pwaPromptShown','true')" 
-                    style="flex:1; padding:10px; border:1px solid #e2e8f0; border-radius:8px; background:transparent; cursor:pointer;">
-                Not Now
-            </button>
-            <button onclick="installPWA()" 
-                    style="flex:1; padding:10px; border:none; border-radius:8px; background:#0052CC; color:white; cursor:pointer; font-weight:600;">
-                Install App
-            </button>
-        </div>
-    `;
-    document.body.appendChild(banner);
-    localStorage.setItem('pwaPromptShown', 'true');
-    
-    // Auto-hide after 30 seconds
-    setTimeout(() => {
-        if (banner.parentNode) banner.remove();
-    }, 30000);
-}
-
-// Install PWA
-window.installPWA = async function() {
-    if ('beforeinstallprompt' in window) {
-        const deferredPrompt = window.deferredPrompt;
-        if (deferredPrompt) {
-            deferredPrompt.prompt();
-            const result = await deferredPrompt.userChoice;
-            console.log('Installation result:', result.outcome);
-            window.deferredPrompt = null;
+    stopChecker() {
+        if (this.notificationCheckInterval) {
+            clearInterval(this.notificationCheckInterval);
+            this.notificationCheckInterval = null;
         }
-    } else {
-        // Show instructions for manual install
-        alert('To install:\n\n' +
-              'Chrome: Tap the menu (⋮) → "Install app"\n' +
-              'Safari: Tap Share → "Add to Home Screen"');
     }
-    document.querySelector('.pwa-install-banner')?.remove();
-};
-
-// Listen for beforeinstallprompt
-window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    window.deferredPrompt = e;
-    console.log('PWA install prompt available');
-});
-
-function startNotificationChecker(state, onUpdate) {
-    stopNotificationChecker();
     
-    // Check every 30 seconds for mobile
-    notificationInterval = setInterval(() => {
-        checkScheduledDoses(state, onUpdate);
-    }, 30000);
+    checkScheduledDoses() {
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+        const nowSeconds = now.getSeconds();
+        
+        this.state.medications.forEach(med => {
+            const scheduleDate = new Date(med.schedule).toISOString().split('T')[0];
+            if (scheduleDate !== today) return;
+            
+            const scheduleMin = this.getScheduleMinutes(med.schedule);
+            const timeDiff = nowMin - scheduleMin;
+            
+            const alreadyLogged = this.state.logs.some(l => 
+                l.medicationId === med.id && 
+                l.timestamp.startsWith(today)
+            );
+            
+            if (alreadyLogged) return;
+            
+            // 3 minutes before
+            if (timeDiff >= -3 && timeDiff < 0 && nowSeconds < 5) {
+                this.sendNotification(
+                    `⏰ Upcoming: ${med.name}`,
+                    `${med.name} (${med.dosage}) due in ${Math.abs(Math.floor(timeDiff))} minutes. ${this.getCompartmentLabel(med.compartment)} dose.`,
+                    med
+                );
+            }
+            
+            // At scheduled time
+            if (timeDiff >= 0 && timeDiff <= 1 && nowSeconds < 10) {
+                this.sendNotification(
+                    `💊 Time for ${med.name}`,
+                    `Take ${med.name} (${med.dosage}) - ${this.getCompartmentLabel(med.compartment)} dose.`,
+                    med
+                );
+            }
+            
+            // Overdue (every 15 minutes)
+            if (timeDiff > 1 && timeDiff % 15 < 1) {
+                const overdueMinutes = Math.floor(timeDiff);
+                this.sendNotification(
+                    `⚠️ ${med.name} Overdue`,
+                    `${med.name} is ${overdueMinutes} min overdue. ${this.getCompartmentLabel(med.compartment)} dose.`,
+                    med
+                );
+            }
+        });
+    }
     
-    // Also check immediately
-    checkScheduledDoses(state, onUpdate);
-    scheduleNextCheck(state, onUpdate);
-}
-
-function scheduleNextCheck(state, onUpdate) {
-    if (notificationTimeout) clearTimeout(notificationTimeout);
-    
-    // More frequent checks for mobile
-    notificationTimeout = setTimeout(() => {
-        if (state.notificationsEnabled) {
-            checkScheduledDoses(state, onUpdate);
-            scheduleNextCheck(state, onUpdate);
+    // ===== SEND NOTIFICATIONS =====
+    sendNotification(title, message, medication) {
+        // Send via OneSignal (browser push)
+        this.sendOneSignal(title, message, medication);
+        
+        // Send via Email (if configured)
+        if (this.emailEnabled) {
+            this.sendEmail(title, message, medication);
         }
-    }, 15000);
-}
-
-function stopNotificationChecker() {
-    if (notificationInterval) {
-        clearInterval(notificationInterval);
-        notificationInterval = null;
-    }
-    if (notificationTimeout) {
-        clearTimeout(notificationTimeout);
-        notificationTimeout = null;
-    }
-}
-
-function checkScheduledDoses(state, onUpdate) {
-    if (!('Notification' in window) || Notification.permission !== 'granted') {
-        return;
     }
     
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const nowMin = now.getHours() * 60 + now.getMinutes();
-    const nowSeconds = now.getSeconds();
+    sendOneSignal(title, message, medication) {
+        if (!window.OneSignal) return;
+        
+        window.OneSignal.push(() => {
+            OneSignal.sendSelfNotification(
+                title,
+                message,
+                null,
+                {
+                    medicationId: medication ? medication.id : null
+                }
+            ).then(() => {
+                console.log('📱 OneSignal notification sent:', title);
+            }).catch(err => {
+                console.warn('OneSignal send failed:', err);
+            });
+        });
+    }
     
-    state.medications.forEach(med => {
-        const scheduleDate = new Date(med.schedule).toISOString().split('T')[0];
+    sendEmail(title, message, medication) {
+        const email = localStorage.getItem('notificationEmail');
+        if (!email) return;
         
-        if (scheduleDate !== today) return;
+        const subject = `AlagaTap: ${title}`;
+        const body = `${message}\n\n---\nLogged by: Self-Reported\nTime: ${new Date().toLocaleString()}\nMedication: ${medication ? medication.name : 'Unknown'}`;
         
-        const scheduleMin = getScheduleMinutes(med.schedule);
-        const timeDiff = nowMin - scheduleMin;
+        fetch(`https://formspree.io/f/${this.formspreeId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: email,
+                subject: subject,
+                message: body
+            })
+        }).catch(() => {
+            // Fallback: open email client
+            window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        });
+    }
+    
+    // ===== TEST NOTIFICATION =====
+    testNotification() {
+        if (!this.state.notificationsEnabled) {
+            this.showToast('⚠️ Please enable notifications first');
+            return;
+        }
         
-        const alreadyLogged = state.logs.some(l => 
-            l.medicationId === med.id && 
-            l.timestamp.startsWith(today)
+        this.sendNotification(
+            '🧪 Test Notification',
+            'Your notifications are working! You\'ll get reminders 3 minutes before each dose.',
+            null
         );
         
-        if (alreadyLogged) return;
-        
-        // 3 minutes before
-        const isThreeMinutesBefore = timeDiff >= -3 && timeDiff < 0;
-        const isAtScheduledTime = timeDiff >= 0 && timeDiff <= 1;
-        const isOverdue = timeDiff > 1 && timeDiff <= 60;
-        
-        if (isThreeMinutesBefore && nowSeconds < 5) {
-            const reminderTime = new Date(med.schedule);
-            const timeStr = reminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            sendNotification(
-                `⏰ ${med.name} Coming Up`,
-                `${med.name} (${med.dosage}) due at ${timeStr}. ${getCompartmentLabel(med.compartment)} dose.`,
-                'reminder',
-                med.id
-            );
-        }
-        
-        if (isAtScheduledTime && nowSeconds < 10) {
-            sendNotification(
-                `💊 Time for ${med.name}`,
-                `Take ${med.name} (${med.dosage}) - ${getCompartmentLabel(med.compartment)} dose.`,
-                'due',
-                med.id
-            );
-        }
-        
-        if (isOverdue && timeDiff % 15 < 1) {
-            const overdueMinutes = Math.floor(timeDiff);
-            sendNotification(
-                `⚠️ ${med.name} Overdue`,
-                `${med.name} is ${overdueMinutes} min overdue. ${getCompartmentLabel(med.compartment)} dose.`,
-                'overdue',
-                med.id
-            );
-        }
-    });
-}
-
-function sendNotification(title, body, type = 'reminder', medicationId = null) {
-    if (!('Notification' in window) || Notification.permission !== 'granted') {
-        return;
+        this.showToast('✅ Test notification sent! Check your phone/email.');
     }
     
-    const key = `${type}_${medicationId || body.substring(0, 20)}`;
-    const lastSent = localStorage.getItem('notif_last_' + key);
-    const now = Date.now();
-    
-    if (lastSent) {
-        const diff = now - parseInt(lastSent);
-        if (diff < 300000) return;
+    // ===== UI HELPERS =====
+    showStatus(message, type = '') {
+        const statusDiv = document.getElementById('notificationStatus');
+        if (!statusDiv) return;
+        
+        statusDiv.className = `notification-status ${type}`;
+        statusDiv.innerHTML = `<span class="status-message">${message}</span>`;
     }
     
-    try {
-        const notificationOptions = {
-            body: body,
-            tag: key,
-            requireInteraction: true,
-            silent: false,
-            vibrate: [200, 100, 200],
-            timestamp: now,
-            data: { 
-                type, 
-                timestamp: now,
-                medicationId: medicationId,
-                url: window.location.href
-            }
-        };
+    showToast(message) {
+        const existing = document.querySelector('.toast-notification');
+        if (existing) existing.remove();
         
-        // Try to use service worker for better mobile support
-        if (serviceWorkerRegistered && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.ready.then(registration => {
-                registration.showNotification(title, notificationOptions);
-            });
-        } else {
-            // Fallback to regular notification
-            const notification = new Notification('🔔 AlagaTap', {
-                ...notificationOptions,
-                icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%230052CC"/><text x="50" y="65" text-anchor="middle" fill="white" font-size="50" font-family="sans-serif">💊</text></svg>'
-            });
-            
-            notification.onclick = function() {
-                window.focus();
-                this.close();
-                if (medicationId) {
-                    highlightMedication(medicationId);
-                }
-            };
-            
-            setTimeout(() => {
-                try { notification.close(); } catch (e) {}
-            }, 30000);
-        }
+        const toast = document.createElement('div');
+        toast.className = 'toast-notification';
+        toast.textContent = message;
+        document.body.appendChild(toast);
         
-        localStorage.setItem('notif_last_' + key, now.toString());
-        console.log(`🔔 Notification: ${title}`);
-        
-    } catch (e) {
-        console.warn('Failed to send notification:', e);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.3s';
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+    
+    // ===== HELPERS =====
+    getScheduleMinutes(scheduleStr) {
+        const d = new Date(scheduleStr);
+        return d.getHours() * 60 + d.getMinutes();
+    }
+    
+    getCompartmentLabel(compartment) {
+        const labels = { 'A': 'Morning', 'B': 'Noon', 'C': 'Night', 'D': 'Custom' };
+        return labels[compartment] || compartment;
     }
 }
 
-function highlightMedication(medicationId) {
-    if (!medicationId) return;
-    
-    const cards = document.querySelectorAll('.compartment-card');
-    cards.forEach(card => {
-        if (card.dataset.medId === medicationId) {
-            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            card.style.borderColor = '#0052CC';
-            card.style.borderWidth = '3px';
-            card.style.boxShadow = '0 0 20px rgba(0,82,204,0.3)';
-            setTimeout(() => {
-                card.style.borderColor = '';
-                card.style.borderWidth = '';
-                card.style.boxShadow = '';
-            }, 5000);
-        }
-    });
+// Export for use in app.js
+export function initNotifications(state, onUpdate) {
+    const manager = new NotificationManager(state, onUpdate);
+    return manager;
 }
-
-function getScheduleMinutes(scheduleStr) {
-    const d = new Date(scheduleStr);
-    return d.getHours() * 60 + d.getMinutes();
-}
-
-function getCompartmentLabel(compartment) {
-    const labels = { 'A': 'Morning', 'B': 'Noon', 'C': 'Night', 'D': 'Custom' };
-    return labels[compartment] || compartment;
-}
-
-function showToast(message) {
-    const existing = document.querySelector('.toast-notification');
-    if (existing) existing.remove();
-    
-    const toast = document.createElement('div');
-    toast.className = 'toast-notification';
-    toast.textContent = message;
-    toast.style.cssText = `
-        position: fixed;
-        bottom: 24px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: #1e293b;
-        color: white;
-        padding: 12px 24px;
-        border-radius: 12px;
-        font-weight: 500;
-        font-size: 14px;
-        z-index: 2000;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-        animation: toastSlide 0.3s ease;
-        max-width: 90%;
-        text-align: center;
-    `;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transition = 'opacity 0.3s';
-        setTimeout(() => toast.remove(), 300);
-    }, 4000);
-}
-
-// Test function
-export function testNotification() {
-    if (!('Notification' in window)) {
-        console.warn('Notifications not supported');
-        return;
-    }
-    
-    if (Notification.permission !== 'granted') {
-        Notification.requestPermission().then((permission) => {
-            if (permission === 'granted') {
-                sendTestNotification();
-            } else {
-                showToast('⚠️ Please allow notifications to test.');
-            }
-        });
-        return;
-    }
-    
-    sendTestNotification();
-}
-
-function sendTestNotification() {
-    sendNotification(
-        '🧪 Test Notification',
-        'Your notifications are working! You\'ll get reminders 3 minutes before each dose.',
-        'reminder',
-        null
-    );
-    showToast('✅ Test notification sent! Check your notification bar.');
-}
-
-window.testAlagaTapNotification = testNotification;

@@ -1,0 +1,16 @@
+{
+    "name": "alagatap",
+    "version": "2.0.0",
+    "description": "AlagaTap Smart Pill Dashboard - QR-Assisted Smart Pill Storage Platform",
+    "scripts": {
+        "dev": "vercel dev",
+        "build": "vercel build",
+        "deploy": "vercel --prod"
+    },
+    "keywords": ["healthcare", "medication", "pillbox", "caregiver", "qr-code"],
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+        "vercel": "^33.0.0"
+    }
+}

@@ -77,7 +77,6 @@ export function renderCompartmentList(state, elements, callbacks) {
         `;
     }).join('');
     
-    // Attach event listeners
     list.querySelectorAll('.log-dose-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();

@@ -49,7 +49,6 @@ export function loadState() {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (raw) {
             const parsed = JSON.parse(raw);
-            // Ensure all required fields exist
             return { ...defaultState, ...parsed };
         }
     } catch (e) {

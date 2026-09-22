@@ -18,10 +18,10 @@ import {
 (function runSplash() {
     const splash = document.getElementById('splashScreen');
     if (!splash) return;
-    setTimeout(() => splash.classList.add('hiding'), 1500);
+    setTimeout(() => splash.classList.add('hiding'), 1700);
     setTimeout(() => {
         if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
-    }, 2200);
+    }, 2300);
 })();
 
 // ---------------- DOM ----------------
@@ -81,6 +81,9 @@ const elements = {
     // confirm
     confirmDetails: document.getElementById('confirmDetails'),
     confirmLogBtn: document.getElementById('confirmLogBtn'),
+    deleteModal: document.getElementById('deleteModal'),
+    deleteMedName: document.getElementById('deleteMedName'),
+    confirmDeleteBtn: document.getElementById('confirmDeleteBtn'),
 };
 
 let state = loadState();
@@ -89,6 +92,7 @@ let cooldownInterval = null;
 let selectedMedId = null;
 let notificationManager = null;
 let pendingCompartment = null; // {day, slot} — used when adding from a cell
+let pendingDeleteId = null;
 
 // ---------------- Theme ----------------
 function setTheme(theme) {
@@ -111,7 +115,7 @@ function renderAll() {
     renderTodayList(state, elements, {
         onLogDose: openConfirmModal,
         onEditMed: openEditModal,
-        onDeleteMed: deleteMedication
+        onDeleteMed: openDeleteModal
     });
     renderWarnings(state, elements);
     renderRefillAlert(state, elements);
@@ -149,6 +153,16 @@ function updateMedication(id, data) {
     med.maxInventory = parseInt(data.inventory) || med.maxInventory;
     saveState(state);
     renderAll();
+}
+
+// ---- Delete confirmation flow ----
+function openDeleteModal(medId) {
+    const med = state.medications.find(m => m.id === medId);
+    if (!med) return;
+
+    pendingDeleteId = medId;
+    elements.deleteMedName.textContent = med.name + ' (' + med.dosage + ')';
+    openModal(elements.deleteModal);
 }
 
 function deleteMedication(id) {
@@ -508,6 +522,15 @@ function init() {
         if (selectedMedId) logDose(selectedMedId);
     });
 
+    // Confirm delete
+    elements.confirmDeleteBtn.addEventListener('click', function () {
+        if (!pendingDeleteId) return;
+        deleteMedication(pendingDeleteId);
+        pendingDeleteId = null;
+        closeModal(elements.deleteModal);
+        showToast('Medication deleted.');
+    });
+
     // History
     elements.historyToggle.addEventListener('click', function () {
         historyOpen = !historyOpen;
@@ -599,12 +622,16 @@ function init() {
             if (modalId) {
                 const modal = document.getElementById(modalId);
                 if (modal) closeModal(modal);
+                if (modalId === 'deleteModal') pendingDeleteId = null;
             }
         });
     });
     document.querySelectorAll('.modal-overlay').forEach(function (modal) {
         modal.addEventListener('click', function (e) {
-            if (e.target === modal) closeModal(modal);
+            if (e.target === modal) {
+                closeModal(modal);
+                if (modal.id === 'deleteModal') pendingDeleteId = null;
+            }
         });
     });
 

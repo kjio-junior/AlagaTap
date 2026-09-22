@@ -43,6 +43,11 @@ body {
     transition: background var(--transition);
 }
 
+html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+}
+
 [data-theme="dark"] body {
     background: #0b1120;
 }
@@ -50,12 +55,22 @@ body {
 .alaga-container {
     max-width: 430px;
     width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
     background: var(--bg-primary);
     border-radius: var(--radius);
     padding: 20px 16px 28px;
     box-shadow: var(--shadow-lg);
     transition: background var(--transition), color var(--transition);
     color: var(--text-primary);
+}
+
+.pillbox-section,
+.compartment-section,
+.hero-card,
+.notification-toggle {
+    min-width: 0;
+    max-width: 100%;
 }
 
 /* Typography */
@@ -110,6 +125,158 @@ h1, h2, h3, h4 {
 
 .btn-secondary:hover {
     background: var(--border-color);
+}
+
+/* ============================================================
+   SPLASH SCREEN — modern healthcare theme
+   ============================================================ */
+
+.splash-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: #0F172A;
+    overflow: hidden;
+    opacity: 1;
+    transition: opacity 0.55s ease;
+}
+
+.splash-screen.hiding {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.splash-bg {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(1200px 600px at 20% 10%, rgba(0, 163, 255, 0.28), transparent 60%),
+        radial-gradient(900px 500px at 85% 90%, rgba(0, 229, 163, 0.22), transparent 60%),
+        linear-gradient(160deg, #0F172A 0%, #1E3A8A 100%);
+    animation: splashBgShift 8s ease-in-out infinite alternate;
+}
+
+@keyframes splashBgShift {
+    0% { transform: scale(1); filter: hue-rotate(0deg); }
+    100% { transform: scale(1.06); filter: hue-rotate(-8deg); }
+}
+
+.splash-inner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    color: #fff;
+    max-width: 320px;
+}
+
+.splash-icon-wrap {
+    position: relative;
+    width: 96px;
+    height: 96px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 28px;
+    animation: splashIconIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.splash-glow {
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 229, 163, 0.55) 0%, rgba(0, 163, 255, 0.35) 40%, transparent 70%);
+    animation: splashPulse 2s ease-in-out infinite;
+    filter: blur(8px);
+}
+
+.splash-pill {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    filter: drop-shadow(0 8px 24px rgba(0, 229, 163, 0.35));
+    animation: splashPillFloat 3s ease-in-out infinite;
+}
+
+@keyframes splashPulse {
+    0%, 100% { transform: scale(1); opacity: 0.75; }
+    50% { transform: scale(1.25); opacity: 1; }
+}
+
+@keyframes splashPillFloat {
+    0%, 100% { transform: translateY(0) rotate(-2deg); }
+    50% { transform: translateY(-6px) rotate(2deg); }
+}
+
+@keyframes splashIconIn {
+    from { opacity: 0; transform: translateY(12px) scale(0.9); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.splash-logo {
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 8px;
+    background: linear-gradient(90deg, #ffffff 0%, #B8E4FF 60%, #7CFFD9 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: splashFadeUp 0.65s ease-out 0.15s both;
+}
+
+.splash-subtitle {
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.4px;
+    color: rgba(255, 255, 255, 0.78);
+    margin: 0;
+    animation: splashFadeUp 0.65s ease-out 0.35s both;
+}
+
+@keyframes splashFadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.splash-loader {
+    display: flex;
+    gap: 8px;
+    margin-top: 40px;
+    animation: splashFadeUp 0.65s ease-out 0.55s both;
+}
+
+.splash-loader span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #00E5A3;
+    box-shadow: 0 0 12px rgba(0, 229, 163, 0.6);
+    animation: splashDot 1.4s ease-in-out infinite;
+}
+
+.splash-loader span:nth-child(2) { animation-delay: 0.2s; background: #38BDF8; box-shadow: 0 0 12px rgba(56, 189, 248, 0.6); }
+.splash-loader span:nth-child(3) { animation-delay: 0.4s; background: #A78BFA; box-shadow: 0 0 12px rgba(167, 139, 250, 0.6); }
+
+@keyframes splashDot {
+    0%, 100% { transform: scale(0.7); opacity: 0.5; }
+    50% { transform: scale(1.2); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .splash-bg,
+    .splash-glow,
+    .splash-pill,
+    .splash-loader span { animation: none !important; }
+    .splash-logo,
+    .splash-subtitle,
+    .splash-loader { animation-duration: 0.01ms !important; }
 }
 
 .btn-outline {
@@ -1134,61 +1301,78 @@ h1, h2, h3, h4 {
 }
 
 /* ============================================================
-   WEEKLY PILLBOX GRID
+   WEEKLY PILLBOX GRID — mobile-first, no horizontal overflow
    ============================================================ */
-.pillbox-section { margin-bottom: 20px; }
+
+.pillbox-section {
+    margin-bottom: 20px;
+    min-width: 0;              /* let flex/grid children shrink */
+}
 
 .pillbox-grid {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 10px;
     background: var(--bg-secondary, #f8fafc);
     padding: 10px;
     border-radius: 14px;
     border: 1px solid var(--border-color, #e2e8f0);
+    overflow: hidden;          /* hard stop for any accidental overflow */
+    min-width: 0;
+    width: 100%;
 }
 
 .pillbox-row {
     display: grid;
-    grid-template-columns: 52px repeat(7, 1fr);
+    grid-template-columns: repeat(7, minmax(0, 1fr));  /* 7 equal, shrinkable */
     gap: 4px;
-    align-items: center;
+    align-items: stretch;
+    min-width: 0;
+    width: 100%;
 }
 
-.pillbox-header-row { margin-bottom: 2px; }
+/* Row label sits ABOVE the row (full width, tiny) */
+.pillbox-rowlabel {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted, #94a3b8);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: -4px;
+    padding-left: 2px;
+}
 
-.pillbox-corner { width: 52px; }
+/* Day header row */
+.pillbox-header-row {
+    margin-bottom: 2px;
+}
 
 .pillbox-day-header {
     text-align: center;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
     color: #fff;
     padding: 6px 0;
     border-radius: 6px;
-    letter-spacing: 0.3px;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    letter-spacing: 0.2px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .pillbox-day-header.is-today {
-    box-shadow: 0 0 0 2px rgba(15,23,42,0.35), 0 0 0 4px rgba(255,255,255,0.5);
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.35),
+                0 0 0 4px rgba(255, 255, 255, 0.6);
     transform: scale(1.02);
 }
 
-.pillbox-rowlabel {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--text-muted, #94a3b8);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding-right: 4px;
-    text-align: right;
-}
-
+/* Individual cell — square-ish, always tappable */
 .pillbox-cell {
     position: relative;
-    min-height: 44px;
-    min-width: 44px;
+    aspect-ratio: 1 / 1.15;    /* stable shape without needing min-width */
+    min-width: 0;              /* CRITICAL: allows shrinking in grid */
+    width: 100%;
     border: 2px dashed #cbd5e1;
     border-radius: 8px;
     background: #fff;
@@ -1196,24 +1380,32 @@ h1, h2, h3, h4 {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s ease;
+    transition: transform 0.12s ease, box-shadow 0.12s ease,
+                background 0.12s ease, border-color 0.12s ease;
     padding: 0;
     font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .pillbox-cell:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-.pillbox-cell.has-meds { border-style: solid; }
+.pillbox-cell:active {
+    transform: translateY(0) scale(0.96);
+}
+
+.pillbox-cell.has-meds {
+    border-style: solid;
+}
 
 .pillbox-cell.is-today {
-    box-shadow: 0 0 0 2px rgba(0,82,204,0.35);
+    box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.35);
 }
 
 .pillbox-cell.is-logged {
-    background: rgba(0,229,163,0.15) !important;
+    background: rgba(0, 229, 163, 0.18) !important;
 }
 
 .pillbox-cell.is-overdue {
@@ -1221,12 +1413,12 @@ h1, h2, h3, h4 {
 }
 
 @keyframes pulseRed {
-    0%, 100% { box-shadow: 0 0 0 2px rgba(255,82,82,0.35); }
-    50%      { box-shadow: 0 0 0 4px rgba(255,82,82,0.55); }
+    0%, 100% { box-shadow: 0 0 0 2px rgba(255, 82, 82, 0.35); }
+    50%      { box-shadow: 0 0 0 4px rgba(255, 82, 82, 0.6); }
 }
 
 .pillbox-count {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
     line-height: 1;
 }
@@ -1235,9 +1427,10 @@ h1, h2, h3, h4 {
     position: absolute;
     top: 3px;
     right: 4px;
-    width: 12px;
-    height: 12px;
+    width: 11px;
+    height: 11px;
     color: #00B88A;
+    pointer-events: none;
 }
 
 .pillbox-legend {
@@ -1247,6 +1440,18 @@ h1, h2, h3, h4 {
     margin-top: 8px;
 }
 
+/* Dark mode tweaks */
+[data-theme="dark"] .pillbox-grid {
+    background: #0f172a;
+    border-color: #334155;
+}
+[data-theme="dark"] .pillbox-cell {
+    background: #1e293b;
+    border-color: #475569;
+}
+[data-theme="dark"] .pillbox-day-header {
+    box-shadow: none;
+}
 /* ============================================================
    DAY CHECKBOXES (add/edit modal)
    ============================================================ */
@@ -1341,4 +1546,94 @@ h1, h2, h3, h4 {
     padding: 0 12px;
     font-size: 12px;
     border-radius: 18px;
+}
+
+/* ============================================================
+   DELETE CONFIRMATION MODAL
+   ============================================================ */
+.delete-modal-body {
+    text-align: center;
+    padding: 4px 0 8px;
+}
+
+.delete-icon-circle {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(255, 82, 82, 0.12);
+    color: #FF5252;
+    animation: deleteIconPop 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.delete-icon-circle svg {
+    width: 32px;
+    height: 32px;
+}
+
+@keyframes deleteIconPop {
+    from { transform: scale(0.7); opacity: 0; }
+    to   { transform: scale(1);   opacity: 1; }
+}
+
+.delete-question {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 6px;
+    line-height: 1.35;
+    word-break: break-word;
+}
+
+.delete-question strong {
+    color: var(--text-primary);
+}
+
+.delete-warning {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* ---- Danger button ---- */
+.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 48px;
+    padding: 0 20px;
+    border: none;
+    border-radius: 24px;
+    font-weight: 600;
+    font-size: 15px;
+    font-family: inherit;
+    cursor: pointer;
+    background: #FF5252;
+    color: #fff;
+    transition: all var(--transition, 0.2s ease);
+}
+
+.btn-danger:hover {
+    background: #E63946;
+    transform: translateY(-1px);
+}
+
+.btn-danger:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.btn-danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Dark-mode tweak */
+[data-theme="dark"] .delete-icon-circle {
+    background: rgba(255, 82, 82, 0.18);
 }

@@ -416,8 +416,20 @@
                 <p class="delete-question">
                     Delete <strong id="deleteMedName">this medication</strong>?
                 </p>
+                <div class="delete-details-box">
+                    <div class="delete-details-row">
+                        <span class="delete-details-label">Scheduled</span>
+                        <span class="delete-details-value" id="deleteMedDays">—</span>
+                    </div>
+                    <div class="delete-details-row">
+                        <span class="delete-details-label">Time &amp; slot</span>
+                        <span class="delete-details-value" id="deleteMedSlot">—</span>
+                    </div>
+                </div>
                 <p class="delete-warning">
-                    This will also remove its dose history. This action cannot be undone.
+                    This removes the medication from <strong>every scheduled day</strong> and deletes its
+                    dose history. If you only need to skip today, close this and use
+                    <strong>Missed</strong> in the Record Doses picker instead.
                 </p>
             </div>
             <div class="form-actions">

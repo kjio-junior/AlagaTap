@@ -3,6 +3,7 @@
 import { loadState, saveState, generateId } from './state.js';
 import {
     formatTime, formatDateTime, formatDateShort,
+    getDaysLabel,
     getTodayStr, getTodayDay, getDatesOfThisWeek,
     isMedToday, isOverdue, getSlotLabel,
     getAdherenceStats, getLogsForSummary,
@@ -390,12 +391,20 @@ let pendingDeleteId = null;
 function openDeleteModal(medId) {
     const med = state.medications.find(m => m.id === medId);
     if (!med) return;
+
     pendingDeleteId = medId;
+
     const nameEl = document.getElementById('deleteMedName');
+    const daysEl = document.getElementById('deleteMedDays');
+    const slotEl = document.getElementById('deleteMedSlot');
+
     if (nameEl) nameEl.textContent = med.name + ' (' + med.dosage + ')';
+    if (daysEl) daysEl.textContent = getDaysLabel(med);
+    if (slotEl) slotEl.textContent = getSlotLabel(med.slot) + ' · ' + formatTime(med.time);
+
     const modal = document.getElementById('deleteModal');
     if (modal) openModal(modal);
-    else if (confirm('Delete this medication?')) deleteMedication(medId); // fallback
+    else if (confirm('Delete this medication from all scheduled days?')) deleteMedication(medId);
 }
 
 // ---- Summary ----

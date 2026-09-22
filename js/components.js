@@ -1,4 +1,4 @@
-// js/components.js
+// js/components.js — Rendering
 
 import {
     formatTime, formatDateTime, formatDateShort,
@@ -6,6 +6,7 @@ import {
     getStatusText, getLastDoseTime, isMedToday, isOverdue,
     getSlotLabel, getAdherenceStats, getLogsForSummary,
     buildLogIndex, isLogged,
+    buildLogStatusMap,
     DAY_SHORT, DAY_COLORS, SLOT_ORDER, SLOT_LABELS
 } from './utils.js';
 
@@ -27,12 +28,12 @@ export function renderPillboxGrid(state, elements, callbacks) {
     if (!grid) return;
 
     const todayDay = getTodayDay();
-    const weekDates = getDatesOfThisWeek();    // Sun..Sat
-    const logIndex = buildLogIndex(state.logs); // Set of "medId|date"
+    const weekDates = getDatesOfThisWeek();
+    const statusMap = buildLogStatusMap(state.logs);
 
     let html = '';
 
-    // Header: 7 day headers with the day-of-month under each
+    // Header row
     html += '<div class="pillbox-row pillbox-header-row">';
     for (let d = 0; d < 7; d++) {
         const isToday = d === todayDay;
@@ -53,25 +54,26 @@ export function renderPillboxGrid(state, elements, callbacks) {
         for (let d = 0; d < 7; d++) {
             const cellDate = weekDates[d];
             const cellMeds = state.medications.filter(m =>
-                m.slot === slot &&
-                Array.isArray(m.days) && m.days.includes(d)
+                m.slot === slot && Array.isArray(m.days) && m.days.includes(d)
             );
-            const isToday = d === todayDay;
 
-            // A cell is "logged" ONLY if every med in it has a log for this exact date
-            const cellLogged = cellMeds.length > 0 && cellMeds.every(m =>
-                isLogged(logIndex, m.id, cellDate)
-            );
+            const statuses = cellMeds.map(m => statusMap.get(m.id + '|' + cellDate) || null);
+            const allLogged = cellMeds.length > 0 && statuses.every(s => s !== null);
+            const allTaken  = allLogged && statuses.every(s => s === 'taken');
+            const anyMissed = statuses.some(s => s === 'missed');
+            const isToday   = d === todayDay;
 
             const cellOverdue = isToday && cellMeds.some(m =>
-                !isLogged(logIndex, m.id, cellDate) && isOverdue(m)
+                !statusMap.has(m.id + '|' + cellDate) && isOverdue(m)
             );
 
             const dayColor = DAY_COLORS[d];
             let cls = 'pillbox-cell';
             if (cellMeds.length > 0) cls += ' has-meds';
             if (isToday) cls += ' is-today';
-            if (cellLogged) cls += ' is-logged';
+            if (allTaken) cls += ' is-logged';
+            if (allLogged && anyMissed) cls += ' is-missed';
+            if (!allLogged && statuses.some(s => s !== null)) cls += ' is-partial';
             if (cellOverdue) cls += ' is-overdue';
 
             const style = cellMeds.length > 0
@@ -82,9 +84,13 @@ export function renderPillboxGrid(state, elements, callbacks) {
             if (cellMeds.length > 0) {
                 inner += '<span class="pillbox-count">' + cellMeds.length + '</span>';
             }
-            if (cellLogged) {
+            if (allTaken) {
                 inner += '<svg class="pillbox-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">' +
                             '<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>' +
+                         '</svg>';
+            } else if (allLogged && anyMissed) {
+                inner += '<svg class="pillbox-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">' +
+                            '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>' +
                          '</svg>';
             }
 
@@ -117,7 +123,7 @@ export function renderTodayList(state, elements, callbacks) {
 
     const todayStr = getTodayStr();
     const todayDay = getTodayDay();
-    const logIndex = buildLogIndex(state.logs);
+    const statusMap = buildLogStatusMap(state.logs);
     const todayMeds = state.medications.filter(isMedToday);
 
     if (todayMeds.length === 0) {
@@ -125,15 +131,18 @@ export function renderTodayList(state, elements, callbacks) {
         return;
     }
 
-    // Earliest scheduled time first
     todayMeds.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
     list.innerHTML = todayMeds.map(med => {
-        const logged = isLogged(logIndex, med.id, todayStr);
-        const overdue = !logged && isOverdue(med);
+        const status = statusMap.get(med.id + '|' + todayStr) || null;
+        const overdue = !status && isOverdue(med);
         const low = med.inventory <= 3;
         const out = med.inventory <= 0;
         const dayColor = DAY_COLORS[todayDay];
+
+        const takenBadge  = status === 'taken'  ? '<span class="status-badge taken">Taken</span>' : '';
+        const missedBadge = status === 'missed' ? '<span class="status-badge missed">Missed</span>' : '';
+        const overdueTag  = overdue ? '<span style="color:#FF5252;font-size:12px;margin-left:6px;">(Overdue)</span>' : '';
 
         return `
             <div class="compartment-card" data-med-id="${med.id}" style="border-left: 4px solid ${dayColor};">
@@ -143,8 +152,9 @@ export function renderTodayList(state, elements, callbacks) {
                             ${getSlotLabel(med.slot)}
                         </span>
                         <span class="compartment-name">${med.name}</span>
-                        ${overdue ? '<span style="color:#FF5252;font-size:12px;margin-left:6px;">(Overdue)</span>' : ''}
-                        ${logged ? '<span style="color:#00E5A3;font-size:12px;margin-left:6px;">&#10003; Logged</span>' : ''}
+                        ${overdueTag}
+                        ${takenBadge}
+                        ${missedBadge}
                     </div>
                     <div class="compartment-detail">${med.dosage} &middot; ${formatTime(med.time)}</div>
                     <div class="compartment-inventory">
@@ -154,7 +164,7 @@ export function renderTodayList(state, elements, callbacks) {
                     </div>
                 </div>
                 <div class="compartment-actions">
-                    <button class="btn-icon log-dose-btn" data-med-id="${med.id}" title="Log dose" ${logged ? 'disabled style="opacity:.4;"' : ''}>
+                    <button class="btn-icon log-dose-btn" data-med-id="${med.id}" title="Log dose" ${status ? 'disabled style="opacity:.4;"' : ''}>
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
@@ -194,13 +204,73 @@ export function renderTodayList(state, elements, callbacks) {
     });
 }
 
+// ================= DOSE PICKER LIST =================
+// targetDate: 'YYYY-MM-DD' — defaults to today.
+// filterSlot: 'morning' | 'noon' | 'night' — optional; defaults to all slots.
+export function renderDosePickerList(state, elements, targetDate, filterSlot) {
+    const list = elements.dosePickerList;
+    if (!list) return;
+
+    const dateStr  = targetDate || getTodayStr();
+    const isToday  = dateStr === getTodayStr();
+    const targetDay = new Date(dateStr + 'T12:00:00').getDay();
+    const statusMap = buildLogStatusMap(state.logs);
+
+    const medsForDate = state.medications.filter(m => {
+        if (!Array.isArray(m.days) || !m.days.includes(targetDay)) return false;
+        if (filterSlot && m.slot !== filterSlot) return false;
+        return true;
+    }).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+    if (medsForDate.length === 0) {
+        list.innerHTML = '<div class="picker-empty">No doses scheduled for ' +
+            (isToday ? 'today' : formatDateShort(dateStr)) + '.</div>';
+        return;
+    }
+
+    const headerHTML = !isToday
+        ? '<div class="picker-date-header">Recording for <strong>' +
+          formatDateShort(dateStr) + '</strong></div>'
+        : '';
+    const cooldownActive = state.cooldownUntil && Date.now() < state.cooldownUntil;
+
+    list.innerHTML = headerHTML + medsForDate.map(med => {
+        const status = statusMap.get(med.id + '|' + dateStr) || null;
+        const rowCls = 'picker-row' + (status === 'taken' ? ' is-taken' : '') + (status === 'missed' ? ' is-missed' : '');
+        const takenActive = status === 'taken' ? ' is-active' : '';
+        const missedActive = status === 'missed' ? ' is-active' : '';
+        const takenDisabled = (cooldownActive && isToday && status !== 'taken') ? ' disabled' : '';
+        const slotCls = 'picker-slot slot-' + med.slot;
+
+        return `
+            <div class="${rowCls}">
+                <div class="picker-main"><div class="picker-time">${formatTime(med.time)}</div><div class="picker-info">
+                    <div class="picker-name"><span class="${slotCls}">${getSlotLabel(med.slot)}</span> ${med.name}</div>
+                    <div class="picker-detail">${med.dosage} · ${med.inventory} left</div>
+                </div></div>
+                <div class="picker-actions">
+                    <button type="button" class="picker-btn taken${takenActive}"${takenDisabled} data-med-id="${med.id}" data-date="${dateStr}" data-status="taken">Taken</button>
+                    <button type="button" class="picker-btn missed${missedActive}" data-med-id="${med.id}" data-date="${dateStr}" data-status="missed">Missed</button>
+                </div>
+            </div>`;
+    }).join('');
+
+    list.querySelectorAll('.picker-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (!btn.disabled && typeof elements.onPickerAction === 'function') {
+                elements.onPickerAction(btn.dataset.medId, btn.dataset.date, btn.dataset.status);
+            }
+        });
+    });
+}
+
 // ================= WARNINGS =================
 export function renderWarnings(state, elements) {
     const todayStr = getTodayStr();
-    const logIndex = buildLogIndex(state.logs);
+    const statusMap = buildLogStatusMap(state.logs);
     const overdueMeds = state.medications.filter(med => {
         if (!isMedToday(med)) return false;
-        if (isLogged(logIndex, med.id, todayStr)) return false;
+        if (statusMap.has(med.id + '|' + todayStr)) return false;
         return isOverdue(med);
     });
 
@@ -259,8 +329,18 @@ export function renderHistory(state, elements, isOpen) {
         const name = med ? med.name : 'Unknown';
         const slot = med ? getSlotLabel(med.slot) : '?';
         const forDate = log.date ? formatDateShort(log.date) : '--';
+        const status = log.status || 'taken';
+        const badge = status === 'missed'
+            ? '<span class="status-badge missed">Missed</span>'
+            : '<span class="status-badge taken">Taken</span>';
+
         return `<div class="history-item">
-            <span><span class="compartment">${slot}</span> ${name} &middot; for ${forDate}</span>
+            <span>
+                <span class="compartment">${slot}</span>
+                ${name}
+                <span style="color:var(--text-muted);font-size:12px;"> · for ${forDate}</span>
+                ${badge}
+            </span>
             <span class="date">${formatDateTime(log.timestamp)}</span>
         </div>`;
     }).join('');
@@ -285,8 +365,13 @@ export function renderSummary(state, elements) {
         const name = med ? med.name : 'Unknown';
         const slot = med ? getSlotLabel(med.slot) : '?';
         const forDate = log.date ? formatDateShort(log.date) : '--';
+        const status = log.status || 'taken';
+        const badge = status === 'missed'
+            ? '<span class="status-badge missed">Missed</span>'
+            : '<span class="status-badge taken">Taken</span>';
+
         return `<div class="history-item">
-            <span>${slot} &middot; ${name} &middot; for ${forDate}</span>
+            <span>${slot} · ${name} · for ${forDate} ${badge}</span>
             <span class="date">${formatDateTime(log.timestamp)}</span>
         </div>`;
     }).join('');

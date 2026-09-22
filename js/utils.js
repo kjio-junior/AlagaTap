@@ -117,19 +117,24 @@ export function getStatusText(state) {
         return { text: 'No doses scheduled today', status: 'pending' };
     }
 
-    const idx = buildLogIndex(state.logs);
-    const loggedCount = todayMeds.filter(m => idx.has(m.id + '|' + todayStr)).length;
+    const map = buildLogStatusMap(state.logs);
+    const recorded = todayMeds.filter(m => map.has(m.id + '|' + todayStr));
 
-    if (loggedCount === todayMeds.length) {
-        return { text: "All Today's Doses Logged", status: 'logged' };
+    if (recorded.length === todayMeds.length) {
+        const anyMissed = recorded.some(m => map.get(m.id + '|' + todayStr) === 'missed');
+        return anyMissed
+            ? { text: "All Today's Doses Recorded (some missed)", status: 'logged' }
+            : { text: "All Today's Doses Taken", status: 'logged' };
     }
 
     const hasOverdue = todayMeds.some(m =>
-        isOverdue(m) && !idx.has(m.id + '|' + todayStr)
+        isOverdue(m) && !map.has(m.id + '|' + todayStr)
     );
 
     if (hasOverdue) return { text: 'Dose Overdue', status: 'overdue' };
-    if (loggedCount > 0) return { text: 'Some Doses Pending', status: 'pending' };
+    if (recorded.length > 0) {
+        return { text: recorded.length + ' of ' + todayMeds.length + ' Recorded', status: 'pending' };
+    }
     return { text: 'Dose Pending', status: 'pending' };
 }
 
@@ -168,4 +173,25 @@ export function getLogsForSummary(state) {
     return [...(state.logs || [])]
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
         .slice(0, 50);
+}
+
+// ---------- Status helpers ----------
+export function getStatusLabel(status) {
+    return status === 'missed' ? 'Missed' : 'Taken';
+}
+
+// Update buildLogIndex to also expose per-key status
+// (leave the existing Set version — we add a Map alongside it)
+export function buildLogStatusMap(logs) {
+    const map = new Map();
+    (logs || []).forEach(l => {
+        if (l.medicationId && l.date) {
+            map.set(l.medicationId + '|' + l.date, l.status || 'taken');
+        }
+    });
+    return map;
+}
+
+export function getLogStatus(map, medId, date) {
+    return map.get(medId + '|' + date) || null; // 'taken' | 'missed' | null
 }

@@ -1,187 +1,268 @@
-// js/share.js - URL-based sharing with compression
+// js/share.js — Caregiver share link (v3.0, includes slot/days/status)
+
+import {
+    formatTime, formatDateShort, formatDateTime,
+    getSlotLabel, getTodayStr, getTodayDay, DAY_SHORT
+} from './utils.js';
+
 export class ShareManager {
     constructor(state, elements) {
         this.state = state;
         this.elements = elements;
-        this.shareCode = null;
     }
 
+    // ============================================================
+    // ENCODE
+    // ============================================================
     generateShareLink() {
         const shareData = {
+            v: '3.0',
+            g: new Date().toISOString(),
             m: this.state.medications.map(m => ({
-                n: m.name,
-                d: m.dosage,
-                c: m.compartment,
-                s: m.schedule,
-                inv: m.inventory
+                id:   m.id,
+                n:    m.name,
+                d:    m.dosage,
+                slot: m.slot,
+                days: m.days,
+                time: m.time,
+                inv:  m.inventory
             })),
             l: this.state.logs.slice(-50).map(l => ({
-                t: l.timestamp,
-                c: l.compartment,
-                m: l.medicationId,
-                dt: l.doseType || 'Self-Reported'
-            })),
-            v: '2.0',
-            gen: new Date().toISOString()
+                t:      l.timestamp,
+                medId:  l.medicationId,
+                slot:   l.slot,
+                date:   l.date,
+                status: l.status || 'taken'
+            }))
         };
 
         try {
-            const jsonString = JSON.stringify(shareData);
-            const compressed = window.LZString.compressToEncodedURIComponent(jsonString);
+            const json = JSON.stringify(shareData);
+            const compressed = window.LZString.compressToEncodedURIComponent(json);
             const baseUrl = window.location.origin + window.location.pathname;
-            const shareUrl = `${baseUrl}?share=${compressed}`;
-            
-            this.shareCode = 'share_' + Math.random().toString(36).substring(2, 10);
-            this.saveShareHistory(shareUrl, this.shareCode);
-            
-            return shareUrl;
-        } catch (error) {
-            console.error('Failed to generate share link:', error);
-            return this.generateSimpleShareLink();
-        }
-    }
-
-    generateSimpleShareLink() {
-        try {
-            const data = {
-                m: this.state.medications.map(m => ({
-                    n: m.name,
-                    d: m.dosage,
-                    c: m.compartment,
-                    s: m.schedule
-                })),
-                l: this.state.logs.slice(-20).map(l => ({
-                    t: l.timestamp,
-                    c: l.compartment
-                }))
-            };
-            
-            const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-            const baseUrl = window.location.origin + window.location.pathname;
-            return `${baseUrl}?sharedata=${encoded}`;
-        } catch (error) {
-            console.error('Failed to generate simple share link:', error);
+            const url = baseUrl + '?share=' + compressed;
+            this.saveShareHistory(url);
+            return url;
+        } catch (err) {
+            console.error('Failed to generate share link:', err);
             return null;
         }
     }
 
+    // ============================================================
+    // DECODE
+    // ============================================================
     loadSharedData() {
         const params = new URLSearchParams(window.location.search);
-        
         const compressed = params.get('share');
-        if (compressed) {
-            try {
-                const decompressed = window.LZString.decompressFromEncodedURIComponent(compressed);
-                if (decompressed) {
-                    const data = JSON.parse(decompressed);
-                    return { data, type: 'compressed' };
-                }
-            } catch (e) {
-                console.warn('Failed to decompress share data');
-            }
+        if (!compressed) return null;
+        try {
+            const json = window.LZString.decompressFromEncodedURIComponent(compressed);
+            if (!json) return null;
+            const data = JSON.parse(json);
+            return { data, type: 'compressed' };
+        } catch (err) {
+            console.warn('Failed to load share data:', err);
+            return null;
         }
-        
-        const simple = params.get('sharedata');
-        if (simple) {
-            try {
-                const decoded = JSON.parse(decodeURIComponent(escape(atob(simple))));
-                return { data: decoded, type: 'simple' };
-            } catch (e) {
-                console.warn('Failed to decode simple share data');
-            }
-        }
-        
-        return null;
     }
 
-    renderReadOnlyView(sharedData) {
+    // ============================================================
+    // RENDER READ-ONLY VIEW
+    // ============================================================
+    renderReadOnlyView(shared) {
+        const meds = (shared.m || []).map(m => ({
+            id:        m.id || m.n,
+            name:      m.n,
+            dosage:    m.d,
+            slot:      m.slot || 'morning',
+            days:      Array.isArray(m.days) ? m.days : [0,1,2,3,4,5,6],
+            time:      m.time || '08:00',
+            inventory: m.inv != null ? m.inv : 0
+        }));
+
+        const logs = (shared.l || []).map(l => ({
+            timestamp:     l.t,
+            medicationId:  l.medId,
+            slot:          l.slot,
+            date:          l.date,
+            status:        l.status || 'taken'
+        }));
+
         const container = document.getElementById('app');
-        
+        container.innerHTML = '';
+
+        // ---- Header banner ----
         const banner = document.createElement('div');
-        banner.className = 'readonly-banner';
-        banner.innerHTML = `
-            <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4 flex items-center gap-3">
-                <svg class="icon text-blue-600 dark:text-blue-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                </svg>
-                <div>
-                    <span class="font-semibold">Read-Only View</span>
-                    <span class="text-sm text-gray-600 dark:text-gray-400">· Shared by Caregiver</span>
-                    ${sharedData.gen ? `<span class="text-xs text-gray-500 dark:text-gray-500 ml-2">Generated: ${new Date(sharedData.gen).toLocaleDateString()}</span>` : ''}
-                </div>
-                <button onclick="window.history.back()" class="ml-auto text-sm bg-blue-100 dark:bg-blue-800 hover:bg-blue-200 dark:hover:bg-blue-700 px-3 py-1 rounded-full">
-                    ← Back
-                </button>
-            </div>
-        `;
-        container.prepend(banner);
+        banner.className = 'ro-banner';
+        banner.innerHTML =
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;flex-shrink:0;">' +
+                '<path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>' +
+            '</svg>' +
+            '<div>' +
+                '<div style="font-weight:600;">Read-Only View</div>' +
+                '<div style="font-size:12px;opacity:.75;">Shared ' +
+                    new Date(shared.g).toLocaleDateString() + '</div>' +
+            '</div>';
+        container.appendChild(banner);
 
-        const medList = document.getElementById('compartmentList');
-        if (medList && sharedData.m) {
-            medList.innerHTML = sharedData.m.map(m => `
-                <div class="compartment-card opacity-80 cursor-default">
-                    <div class="compartment-info">
-                        <div>
-                            <span class="compartment-tag">${m.c}</span>
-                            <span class="compartment-name">${m.n}</span>
-                        </div>
-                        <div class="compartment-detail">${m.d} · Target: ${this.formatTime(m.s)}</div>
-                        ${m.inv !== undefined ? `<div class="compartment-inventory">${m.inv} doses remaining</div>` : ''}
-                    </div>
-                    <span class="text-sm text-gray-400 dark:text-gray-600">🔒</span>
-                </div>
-            `).join('');
-        } else if (medList) {
-            medList.innerHTML = '<div class="text-center text-gray-500 py-4">No medications in shared data</div>';
+        // ---- Brand header ----
+        const brand = document.createElement('div');
+        brand.className = 'ro-brand';
+        brand.innerHTML =
+            '<span class="ro-brand-name">AlagaTap</span>' +
+            '<span class="ro-brand-badge">Shared</span>';
+        container.appendChild(brand);
+
+        // ---- Today's status card ----
+        const todayStr = getTodayStr();
+        const todayDay = getTodayDay();
+        const statusMap = new Map();
+        logs.forEach(l => statusMap.set(l.medicationId + '|' + l.date, l.status));
+
+        const todayMeds = meds.filter(m => m.days.includes(todayDay));
+        const takenToday  = todayMeds.filter(m => statusMap.get(m.id + '|' + todayStr) === 'taken').length;
+        const missedToday = todayMeds.filter(m => statusMap.get(m.id + '|' + todayStr) === 'missed').length;
+        const pendingToday = todayMeds.length - takenToday - missedToday;
+
+        const statusCard = document.createElement('div');
+        statusCard.className = 'ro-status-card';
+        statusCard.innerHTML =
+            '<div class="ro-status-title">Today &mdash; ' + DAY_SHORT[todayDay] + '</div>' +
+            '<div class="ro-status-pills">' +
+                '<div class="ro-pill ro-pill-taken">' +
+                    '<div class="ro-pill-num">' + takenToday + '</div>' +
+                    '<div class="ro-pill-lbl">Taken</div>' +
+                '</div>' +
+                '<div class="ro-pill ro-pill-missed">' +
+                    '<div class="ro-pill-num">' + missedToday + '</div>' +
+                    '<div class="ro-pill-lbl">Missed</div>' +
+                '</div>' +
+                '<div class="ro-pill ro-pill-pending">' +
+                    '<div class="ro-pill-num">' + pendingToday + '</div>' +
+                    '<div class="ro-pill-lbl">Pending</div>' +
+                '</div>' +
+            '</div>';
+        container.appendChild(statusCard);
+
+        // ---- Medication schedule ----
+        if (meds.length > 0) {
+            const scheduleSection = document.createElement('section');
+            scheduleSection.className = 'ro-section';
+            scheduleSection.innerHTML = '<h2 class="ro-section-title">Medication Schedule</h2>';
+
+            // Group by slot
+            ['morning', 'noon', 'night'].forEach(slot => {
+                const slotMeds = meds.filter(m => m.slot === slot);
+                if (slotMeds.length === 0) return;
+
+                const group = document.createElement('div');
+                group.className = 'ro-slot-group';
+                group.innerHTML =
+                    '<div class="ro-slot-header slot-' + slot + '">' + getSlotLabel(slot) + '</div>' +
+                    slotMeds.map(m => {
+                        const daysLabel = this._formatDays(m.days);
+                        return '<div class="ro-med-row">' +
+                            '<div class="ro-med-name">' + this._esc(m.name) + '</div>' +
+                            '<div class="ro-med-detail">' + this._esc(m.dosage) +
+                                ' &middot; ' + formatTime(m.time) +
+                                ' &middot; ' + daysLabel + '</div>' +
+                        '</div>';
+                    }).join('');
+                scheduleSection.appendChild(group);
+            });
+            container.appendChild(scheduleSection);
         }
 
-        const historyList = document.getElementById('historyList');
-        if (historyList && sharedData.l && sharedData.l.length > 0) {
-            historyList.innerHTML = sharedData.l.map(l => `
-                <div class="history-item">
-                    <span>
-                        <span class="font-medium">${l.c}</span>
-                        ${l.dt || 'Self-Reported'}
-                    </span>
-                    <span class="date">${this.formatDateTime(l.t)}</span>
-                </div>
-            `).join('');
-        } else if (historyList) {
-            historyList.innerHTML = '<div class="text-center text-gray-500 py-4">No logs in shared data</div>';
-        }
+        // ---- Intake history (recent 20) ----
+        const historySection = document.createElement('section');
+        historySection.className = 'ro-section';
+        historySection.innerHTML = '<h2 class="ro-section-title">Recent Intake History</h2>';
 
-        document.querySelectorAll('button:not(.modal-close):not([onclick])').forEach(btn => {
-            btn.disabled = true;
-            btn.style.opacity = '0.5';
-            btn.style.cursor = 'not-allowed';
-        });
+        const recent = logs.slice().sort((a, b) =>
+            new Date(b.timestamp) - new Date(a.timestamp)
+        ).slice(0, 20);
 
-        const statusText = document.getElementById('statusText');
-        const statusDot = document.getElementById('statusDot');
-        const heroTimestamp = document.getElementById('heroTimestamp');
-        if (statusText) {
-            statusText.textContent = '📋 Viewing Shared Data';
-            statusDot.className = 'status-dot logged';
+        if (recent.length === 0) {
+            historySection.innerHTML += '<div class="ro-empty">No intake recorded yet.</div>';
+        } else {
+            const list = document.createElement('div');
+            list.className = 'ro-history-list';
+            list.innerHTML = recent.map(l => {
+                const med = meds.find(m => m.id === l.medicationId);
+                const name = med ? med.name : 'Unknown';
+                const slot = med ? getSlotLabel(med.slot) : getSlotLabel(l.slot);
+                const badge = l.status === 'missed'
+                    ? '<span class="status-badge missed">Missed</span>'
+                    : '<span class="status-badge taken">Taken</span>';
+                const forDate = l.date ? ' · for ' + formatDateShort(l.date) : '';
+                return '<div class="history-item">' +
+                    '<span><span class="compartment">' + slot + '</span> ' +
+                        this._esc(name) +
+                        '<span style="color:var(--text-muted);font-size:12px;">' + forDate + '</span> ' +
+                        badge +
+                    '</span>' +
+                    '<span class="date">' + formatDateTime(l.timestamp) + '</span>' +
+                '</div>';
+            }).join('');
+            historySection.appendChild(list);
         }
-        if (heroTimestamp) {
-            heroTimestamp.textContent = `Shared on ${this.formatDateTime(sharedData.gen || new Date().toISOString())}`;
-        }
+        container.appendChild(historySection);
 
-        const recordBtn = document.getElementById('recordDoseBtn');
-        if (recordBtn) {
-            recordBtn.disabled = true;
-            recordBtn.style.opacity = '0.5';
-            recordBtn.style.cursor = 'not-allowed';
-        }
+        // ---- Adherence summary ----
+        let totalScheduled = 0;
+        meds.forEach(m => { totalScheduled += m.days.length; });  // per week
+        const totalReported = logs.length;
+        const rate = totalScheduled > 0
+            ? Math.round((totalReported / totalScheduled) * 100)
+            : 0;
 
-        this.showToast('📋 Viewing shared medication schedule');
+        const summarySection = document.createElement('section');
+        summarySection.className = 'ro-section';
+        summarySection.innerHTML =
+            '<h2 class="ro-section-title">Adherence Summary</h2>' +
+            '<div class="ro-summary-grid">' +
+                '<div class="ro-summary-item">' +
+                    '<div class="ro-summary-num">' + totalScheduled + '</div>' +
+                    '<div class="ro-summary-lbl">Scheduled / week</div>' +
+                '</div>' +
+                '<div class="ro-summary-item">' +
+                    '<div class="ro-summary-num">' + totalReported + '</div>' +
+                    '<div class="ro-summary-lbl">Reported</div>' +
+                '</div>' +
+                '<div class="ro-summary-item">' +
+                    '<div class="ro-summary-num">' + rate + '%</div>' +
+                    '<div class="ro-summary-lbl">Adherence</div>' +
+                '</div>' +
+            '</div>' +
+            '<p style="font-size:11px;color:var(--text-muted);margin-top:12px;text-align:center;line-height:1.5;">' +
+                'All doses are self-reported. This view reflects what was logged by the user or their caregiver, ' +
+                'not verified biological intake.' +
+            '</p>';
+        container.appendChild(summarySection);
     }
 
-    saveShareHistory(url, code) {
+    // ============================================================
+    // HELPERS
+    // ============================================================
+    _formatDays(days) {
+        if (!Array.isArray(days) || days.length === 0) return '—';
+        if (days.length === 7) return 'Every day';
+        if (days.length === 5 && [1,2,3,4,5].every(d => days.includes(d))) return 'Weekdays';
+        if (days.length === 2 && days.includes(0) && days.includes(6)) return 'Weekends';
+        return days.slice().sort((a,b) => a-b).map(d => DAY_SHORT[d]).join(', ');
+    }
+
+    _esc(str) {
+        return String(str).replace(/[&<>"']/g, c => ({
+            '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+        }[c]));
+    }
+
+    saveShareHistory(url) {
         const history = JSON.parse(localStorage.getItem('alagaTapShareHistory') || '[]');
         history.unshift({
-            code,
-            url,
+            url: url,
             date: new Date().toISOString(),
             medications: this.state.medications.length
         });
@@ -191,37 +272,5 @@ export class ShareManager {
 
     getShareHistory() {
         return JSON.parse(localStorage.getItem('alagaTapShareHistory') || '[]');
-    }
-
-    formatTime(isoString) {
-        if (!isoString) return '--';
-        const d = new Date(isoString);
-        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-
-    formatDateTime(isoString) {
-        if (!isoString) return '--';
-        return `${this.formatDate(isoString)} at ${this.formatTime(isoString)}`;
-    }
-
-    formatDate(isoString) {
-        if (!isoString) return '--';
-        const d = new Date(isoString);
-        return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    }
-
-    showToast(message) {
-        const existing = document.querySelector('.toast-notification');
-        if (existing) existing.remove();
-        
-        const toast = document.createElement('div');
-        toast.className = 'toast-notification';
-        toast.textContent = message;
-        document.body.appendChild(toast);
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            toast.style.transition = 'opacity 0.3s';
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
     }
 }

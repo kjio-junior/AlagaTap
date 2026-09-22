@@ -6,14 +6,15 @@ import {
     getTodayStr, getTodayDay, getDatesOfThisWeek,
     isMedToday, isOverdue, getSlotLabel,
     getAdherenceStats, getLogsForSummary,
-    buildLogIndex, isLogged,
+    buildLogIndex, isLogged, buildLogStatusMap, getLogStatus,
     SLOT_DEFAULT_TIME, DAY_FULL, DAY_COLORS
 } from './utils.js';
 import { initNotifications } from './notifications.js';
 import { ShareManager } from './share.js';
 import {
     renderHero, renderPillboxGrid, renderTodayList, renderWarnings,
-    renderRefillAlert, renderHistory, renderSummary, updateCooldown
+    renderRefillAlert, renderHistory, renderSummary, updateCooldown,
+    renderDosePickerList
 } from './components.js';
 
 // ---- Splash ----
@@ -76,6 +77,11 @@ const elements = {
     qrCode: document.getElementById('qrCode'),
     confirmDetails: document.getElementById('confirmDetails'),
     confirmLogBtn: document.getElementById('confirmLogBtn'),
+    dosePickerModal: document.getElementById('dosePickerModal'),
+    dosePickerList: document.getElementById('dosePickerList'),
+};
+elements.onPickerAction = function (medId, date, status) {
+    logDose(medId, date, status);
 };
 
 let state = loadState();
@@ -104,7 +110,7 @@ function renderAll() {
     renderHero(state, elements);
     renderPillboxGrid(state, elements, { onCellClick: openCompartmentModal });
     renderTodayList(state, elements, {
-        onLogDose: (medId) => openConfirmModal(medId, getTodayStr()),
+        onLogDose: openDosePickerAt,
         onEditMed: openEditModal,
         onDeleteMed: openDeleteModal
     });
@@ -112,6 +118,14 @@ function renderAll() {
     renderRefillAlert(state, elements);
     renderHistory(state, elements, historyOpen);
     updateCooldown(state, elements);
+    if (elements.dosePickerModal && !elements.dosePickerModal.classList.contains('hidden')) {
+        renderDosePickerList(state, elements);
+    }
+}
+
+function openDosePickerAt(medId) {
+    renderDosePickerList(state, elements);
+    openModal(elements.dosePickerModal);
 }
 
 // ---- CRUD ----
@@ -152,51 +166,67 @@ function deleteMedication(id) {
     renderAll();
 }
 
-// ================= LOG DOSE (the fix) =================
+// ================= LOG DOSE (with status) =================
 // A log is uniquely identified by (medicationId, date).
-function logDose() {
-    const { medId, date } = pendingLog;
-    if (!medId || !date) return;
-
+function logDose(medId, date, status) {
     const med = state.medications.find(m => m.id === medId);
     if (!med) return;
 
-    // Cooldown
-    if (state.cooldownUntil && Date.now() < state.cooldownUntil) return;
+    const todayStr = getTodayStr();
+    const isToday = date === todayStr;
 
-    // Idempotency: if this exact (medId, date) is already logged, bail
-    const already = state.logs.some(l => l.medicationId === medId && l.date === date);
-    if (already) {
-        showToast('This dose is already logged.');
-        closeModal(elements.confirmModal);
+    const existingLog = state.logs.find(l => l.medicationId === medId && l.date === date);
+    const existingStatus = existingLog ? (existingLog.status || 'taken') : null;
+
+    // Cooldown only blocks a FRESH 'taken' for TODAY
+    if (status === 'taken' && isToday && existingStatus !== 'taken' &&
+        state.cooldownUntil && Date.now() < state.cooldownUntil) {
+        const remaining = Math.ceil((state.cooldownUntil - Date.now()) / 1000);
+        showToast('Cooldown active — wait ' + remaining + 's before logging another taken dose.');
         return;
     }
 
-    // Inventory
-    if (med.inventory <= 0) {
-        alert('No doses remaining. Please refill this medication.');
-        return;
+    if (existingStatus === 'taken' && status === 'missed') {
+        med.inventory = Math.min(med.maxInventory || 14, med.inventory + 1);
+    } else if (existingStatus !== 'taken' && status === 'taken') {
+        if (med.inventory <= 0) {
+            alert('No doses remaining. Please refill this medication.');
+            return;
+        }
+        med.inventory = Math.max(0, med.inventory - 1);
     }
-
-    med.inventory = Math.max(0, med.inventory - 1);
+    if (existingLog) {
+        state.logs = state.logs.filter(l => l !== existingLog);
+    }
 
     state.logs.push({
         id: 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
         timestamp: new Date().toISOString(),
         medicationId: med.id,
         slot: med.slot,
-        date: date,               // <-- the composite key
+        date: date,
+        status: status,
         doseType: 'Self-Reported'
     });
 
+    // Cooldown only starts when logging a fresh 'taken' for today
+    if (status === 'taken' && isToday) {
+        state.cooldownUntil = Date.now() + 5 * 60 * 1000;
+        startCooldownTimer();
+    }
     state.lastDoseTimestamp = new Date().toISOString();
-    state.cooldownUntil = Date.now() + 5 * 60 * 1000;
 
     saveState(state);
     renderAll();
-    startCooldownTimer();
-    closeModal(elements.confirmModal);
-    pendingLog = { medId: null, date: null };
+
+    // Refresh picker if it's open — reuse last used context
+    if (!elements.dosePickerModal.classList.contains('hidden')) {
+        renderDosePickerList(state, elements, date, med.slot);
+    }
+
+    const label = status === 'taken' ? 'taken' : 'missed';
+    const when = isToday ? '' : ' for ' + formatDateShort(date);
+    showToast(getSlotLabel(med.slot) + ' ' + med.name + ' marked as ' + label + when + '.');
 }
 
 function startCooldownTimer() {
@@ -297,7 +327,8 @@ function openCompartmentModal(day, slot, cellDate) {
     elements.compartmentModalBody.querySelectorAll('.log-from-comp').forEach(btn => {
         btn.addEventListener('click', () => {
             closeModal(elements.compartmentModal);
-            openConfirmModal(btn.dataset.medId, btn.dataset.date);
+            renderDosePickerList(state, elements, cellDate, slot);
+            openModal(elements.dosePickerModal);
         });
     });
     elements.compartmentModalBody.querySelectorAll('.edit-from-comp').forEach(btn => {
@@ -508,19 +539,13 @@ function init() {
 
     // Hero "Record Dose" — earliest unlogged TODAY
     elements.recordDoseBtn.addEventListener('click', () => {
-        const todayStr = getTodayStr();
-        const idx = buildLogIndex(state.logs);
-
-        const pending = state.medications
-            .filter(isMedToday)
-            .filter(m => !idx.has(m.id + '|' + todayStr))
-            .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-
-        if (pending.length === 0) {
-            alert('All of today\u2019s doses are already logged.');
+        const todayMeds = state.medications.filter(isMedToday);
+        if (todayMeds.length === 0) {
+            alert('No doses scheduled today. Tap Add to schedule one.');
             return;
         }
-        openConfirmModal(pending[0].id, todayStr);
+        renderDosePickerList(state, elements);
+        openModal(elements.dosePickerModal);
     });
 
     elements.addMedicationBtn.addEventListener('click', () => {

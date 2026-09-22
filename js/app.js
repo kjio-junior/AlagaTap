@@ -1,10 +1,12 @@
-// js/app.js — Main application
+// js/app.js
 
 import { loadState, saveState, generateId } from './state.js';
 import {
-    formatTime, formatDateTime, getTodayStr, getTodayDay,
-    getStatusText, getLastDoseTime, getDaysLabel, getSlotLabel,
-    getAdherenceStats, getLogsForSummary, isMedToday, isOverdue,
+    formatTime, formatDateTime, formatDateShort,
+    getTodayStr, getTodayDay, getDatesOfThisWeek,
+    isMedToday, isOverdue, getSlotLabel,
+    getAdherenceStats, getLogsForSummary,
+    buildLogIndex, isLogged,
     SLOT_DEFAULT_TIME, DAY_FULL, DAY_COLORS
 } from './utils.js';
 import { initNotifications } from './notifications.js';
@@ -14,17 +16,15 @@ import {
     renderRefillAlert, renderHistory, renderSummary, updateCooldown
 } from './components.js';
 
-// ---------------- Splash ----------------
+// ---- Splash ----
 (function runSplash() {
-    const splash = document.getElementById('splashScreen');
-    if (!splash) return;
-    setTimeout(() => splash.classList.add('hiding'), 1700);
-    setTimeout(() => {
-        if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
-    }, 2300);
+    const s = document.getElementById('splashScreen');
+    if (!s) return;
+    setTimeout(() => s.classList.add('hiding'), 1500);
+    setTimeout(() => { if (s.parentNode) s.parentNode.removeChild(s); }, 2200);
 })();
 
-// ---------------- DOM ----------------
+// ---- DOM ----
 const elements = {
     themeToggle: document.getElementById('themeToggle'),
     themeIcon: document.getElementById('themeIcon'),
@@ -52,7 +52,6 @@ const elements = {
     confirmModal: document.getElementById('confirmModal'),
     summaryModal: document.getElementById('summaryModal'),
     caregiverModal: document.getElementById('caregiverModal'),
-    // form fields
     modalTitle: document.getElementById('modalTitle'),
     editId: document.getElementById('editId'),
     medName: document.getElementById('medName'),
@@ -62,39 +61,31 @@ const elements = {
     medInventory: document.getElementById('medInventory'),
     dayCheckboxes: document.getElementById('dayCheckboxes'),
     medicationForm: document.getElementById('medicationForm'),
-    // compartment modal
     compartmentTitle: document.getElementById('compartmentTitle'),
     compartmentModalBody: document.getElementById('compartmentModalBody'),
     addToCompartmentBtn: document.getElementById('addToCompartmentBtn'),
-    // summary
     totalScheduled: document.getElementById('totalScheduled'),
     totalReported: document.getElementById('totalReported'),
     adherenceRate: document.getElementById('adherenceRate'),
     summaryHistory: document.getElementById('summaryHistory'),
     exportSummaryBtn: document.getElementById('exportSummaryBtn'),
-    // share
     shareLink: document.getElementById('shareLink'),
     refreshShareLink: document.getElementById('refreshShareLink'),
     copyLinkBtn: document.getElementById('copyLinkBtn'),
     shareHistoryBtn: document.getElementById('shareHistoryBtn'),
     qrCode: document.getElementById('qrCode'),
-    // confirm
     confirmDetails: document.getElementById('confirmDetails'),
     confirmLogBtn: document.getElementById('confirmLogBtn'),
-    deleteModal: document.getElementById('deleteModal'),
-    deleteMedName: document.getElementById('deleteMedName'),
-    confirmDeleteBtn: document.getElementById('confirmDeleteBtn'),
 };
 
 let state = loadState();
 let historyOpen = false;
 let cooldownInterval = null;
-let selectedMedId = null;
 let notificationManager = null;
-let pendingCompartment = null; // {day, slot} — used when adding from a cell
-let pendingDeleteId = null;
+let pendingCompartment = null;         // {day, slot} for "Add from cell"
+let pendingLog = { medId: null, date: null }; // <-- the new pending-log context
 
-// ---------------- Theme ----------------
+// ---- Theme ----
 function setTheme(theme) {
     state.theme = theme;
     document.documentElement.setAttribute('data-theme', theme);
@@ -108,12 +99,12 @@ function updateThemeIcon() {
         : '<path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />';
 }
 
-// ---------------- Render ----------------
+// ---- Render ----
 function renderAll() {
     renderHero(state, elements);
     renderPillboxGrid(state, elements, { onCellClick: openCompartmentModal });
     renderTodayList(state, elements, {
-        onLogDose: openConfirmModal,
+        onLogDose: (medId) => openConfirmModal(medId, getTodayStr()),
         onEditMed: openEditModal,
         onDeleteMed: openDeleteModal
     });
@@ -123,9 +114,9 @@ function renderAll() {
     updateCooldown(state, elements);
 }
 
-// ---------------- Medication CRUD ----------------
+// ---- CRUD ----
 function addMedication(data) {
-    const med = {
+    state.medications.push({
         id: generateId(),
         name: data.name.trim(),
         dosage: data.dosage.trim(),
@@ -135,8 +126,7 @@ function addMedication(data) {
         inventory: parseInt(data.inventory) || 14,
         maxInventory: parseInt(data.inventory) || 14,
         createdAt: new Date().toISOString()
-    };
-    state.medications.push(med);
+    });
     saveState(state);
     renderAll();
 }
@@ -155,16 +145,6 @@ function updateMedication(id, data) {
     renderAll();
 }
 
-// ---- Delete confirmation flow ----
-function openDeleteModal(medId) {
-    const med = state.medications.find(m => m.id === medId);
-    if (!med) return;
-
-    pendingDeleteId = medId;
-    elements.deleteMedName.textContent = med.name + ' (' + med.dosage + ')';
-    openModal(elements.deleteModal);
-}
-
 function deleteMedication(id) {
     state.medications = state.medications.filter(m => m.id !== id);
     state.logs = state.logs.filter(l => l.medicationId !== id);
@@ -172,23 +152,43 @@ function deleteMedication(id) {
     renderAll();
 }
 
-// ---------------- Dose logging ----------------
-function logDose(medId) {
+// ================= LOG DOSE (the fix) =================
+// A log is uniquely identified by (medicationId, date).
+function logDose() {
+    const { medId, date } = pendingLog;
+    if (!medId || !date) return;
+
     const med = state.medications.find(m => m.id === medId);
     if (!med) return;
+
+    // Cooldown
     if (state.cooldownUntil && Date.now() < state.cooldownUntil) return;
+
+    // Idempotency: if this exact (medId, date) is already logged, bail
+    const already = state.logs.some(l => l.medicationId === medId && l.date === date);
+    if (already) {
+        showToast('This dose is already logged.');
+        closeModal(elements.confirmModal);
+        return;
+    }
+
+    // Inventory
     if (med.inventory <= 0) {
         alert('No doses remaining. Please refill this medication.');
         return;
     }
 
     med.inventory = Math.max(0, med.inventory - 1);
+
     state.logs.push({
+        id: 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
         timestamp: new Date().toISOString(),
         medicationId: med.id,
         slot: med.slot,
+        date: date,               // <-- the composite key
         doseType: 'Self-Reported'
     });
+
     state.lastDoseTimestamp = new Date().toISOString();
     state.cooldownUntil = Date.now() + 5 * 60 * 1000;
 
@@ -196,6 +196,7 @@ function logDose(medId) {
     renderAll();
     startCooldownTimer();
     closeModal(elements.confirmModal);
+    pendingLog = { medId: null, date: null };
 }
 
 function startCooldownTimer() {
@@ -210,7 +211,7 @@ function startCooldownTimer() {
     }, 500);
 }
 
-// ---------------- Midnight reset ----------------
+// ---- Midnight reset ----
 function checkMidnightReset() {
     const today = getTodayStr();
     if (state.lastResetDate !== today) {
@@ -220,28 +221,39 @@ function checkMidnightReset() {
     }
 }
 
-// ---------------- Modals ----------------
-function openModal(modal) { modal.classList.remove('hidden'); }
-function closeModal(modal) { modal.classList.add('hidden'); }
+// ---- Modal helpers ----
+function openModal(m) { m.classList.remove('hidden'); }
+function closeModal(m) { m.classList.add('hidden'); }
 
-function openConfirmModal(medId) {
+// ---- Confirm dose modal ----
+function openConfirmModal(medId, targetDate) {
     const med = state.medications.find(m => m.id === medId);
     if (!med) return;
+
     if (state.cooldownUntil && Date.now() < state.cooldownUntil) {
         showToast('Cooldown active. Please wait.');
         return;
     }
-    selectedMedId = medId;
+
+    const date = targetDate || getTodayStr();
+    pendingLog = { medId: medId, date: date };
+
+    const isToday = date === getTodayStr();
+    const dateLabel = isToday ? 'today' : formatDateShort(date);
+
     elements.confirmDetails.textContent =
-        getSlotLabel(med.slot) + ' · ' + med.name + ' ' + med.dosage;
+        getSlotLabel(med.slot) + ' · ' + med.name + ' ' + med.dosage + ' · ' + dateLabel;
     openModal(elements.confirmModal);
 }
 
-// ---- Compartment (cell) modal ----
-function openCompartmentModal(day, slot) {
+// ---- Compartment modal ----
+function openCompartmentModal(day, slot, cellDate) {
     const todayStr = getTodayStr();
     const isToday = day === getTodayDay();
+    const isFuture = cellDate > todayStr;
     const dayColor = DAY_COLORS[day];
+    const logIndex = buildLogIndex(state.logs);
+
     const meds = state.medications.filter(m =>
         m.slot === slot && Array.isArray(m.days) && m.days.includes(day)
     );
@@ -249,47 +261,47 @@ function openCompartmentModal(day, slot) {
     elements.compartmentTitle.innerHTML =
         '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' +
         dayColor + ';margin-right:8px;"></span>' +
-        DAY_FULL[day] + ' · ' + getSlotLabel(slot);
+        DAY_FULL[day] + ' · ' + getSlotLabel(slot) +
+        ' <span style="font-size:12px;color:var(--text-muted);font-weight:400;">(' +
+        formatDateShort(cellDate) + ')</span>';
 
     if (meds.length === 0) {
         elements.compartmentModalBody.innerHTML =
             '<div class="empty-hint">No medication in this compartment.</div>';
     } else {
-        elements.compartmentModalBody.innerHTML = meds.map(function (med) {
-            const logged = state.logs.some(function (l) {
-                return l.medicationId === med.id && l.timestamp.startsWith(todayStr);
-            });
-            return '<div class="med-row">' +
-                '<div class="info">' +
-                    '<div class="name">' + med.name + '</div>' +
-                    '<div class="detail">' + med.dosage + ' · ' + formatTime(med.time) + '</div>' +
-                    '<div class="detail" style="font-size:12px;color:var(--text-muted);">' +
-                        med.inventory + ' doses remaining' +
-                        (logged ? ' · <span style="color:#00B88A;">Logged today</span>' : '') +
-                    '</div>' +
-                '</div>' +
-                '<div style="display:flex;flex-direction:column;gap:4px;">' +
-                    (isToday && !logged
-                        ? '<button class="btn-primary btn-tiny log-from-comp" data-med-id="' + med.id + '">Log</button>'
-                        : '') +
-                    '<button class="btn-secondary btn-tiny edit-from-comp" data-med-id="' + med.id + '">Edit</button>' +
-                '</div>' +
-            '</div>';
+        elements.compartmentModalBody.innerHTML = meds.map(med => {
+            const logged = isLogged(logIndex, med.id, cellDate);
+            return `<div class="med-row">
+                <div class="info">
+                    <div class="name">${med.name}</div>
+                    <div class="detail">${med.dosage} · ${formatTime(med.time)}</div>
+                    <div class="detail" style="font-size:12px;color:var(--text-muted);">
+                        ${med.inventory} doses remaining
+                        ${logged ? ' · <span style="color:#00B88A;">Logged</span>' : ''}
+                    </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px;">
+                    ${(!isFuture && !logged)
+                        ? `<button class="btn-primary btn-tiny log-from-comp" data-med-id="${med.id}" data-date="${cellDate}">Log</button>`
+                        : isFuture
+                            ? `<span style="font-size:11px;color:var(--text-muted);">Scheduled</span>`
+                            : ''}
+                    <button class="btn-secondary btn-tiny edit-from-comp" data-med-id="${med.id}">Edit</button>
+                </div>
+            </div>`;
         }).join('');
     }
 
-    // Store context for "Add here"
     pendingCompartment = { day: day, slot: slot };
 
-    // Wire up buttons
-    elements.compartmentModalBody.querySelectorAll('.log-from-comp').forEach(function (btn) {
-        btn.addEventListener('click', function () {
+    elements.compartmentModalBody.querySelectorAll('.log-from-comp').forEach(btn => {
+        btn.addEventListener('click', () => {
             closeModal(elements.compartmentModal);
-            openConfirmModal(btn.dataset.medId);
+            openConfirmModal(btn.dataset.medId, btn.dataset.date);
         });
     });
-    elements.compartmentModalBody.querySelectorAll('.edit-from-comp').forEach(function (btn) {
-        btn.addEventListener('click', function () {
+    elements.compartmentModalBody.querySelectorAll('.edit-from-comp').forEach(btn => {
+        btn.addEventListener('click', () => {
             closeModal(elements.compartmentModal);
             openEditModal(btn.dataset.medId);
         });
@@ -298,7 +310,7 @@ function openCompartmentModal(day, slot) {
     openModal(elements.compartmentModal);
 }
 
-// ---- Add/Edit medication modal ----
+// ---- Edit modal ----
 function openEditModal(medId) {
     const med = state.medications.find(m => m.id === medId);
     if (!med) return;
@@ -311,8 +323,7 @@ function openEditModal(medId) {
     elements.medTime.value = med.time;
     elements.medInventory.value = med.inventory;
 
-    // Days
-    elements.dayCheckboxes.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
+    elements.dayCheckboxes.querySelectorAll('input[type=checkbox]').forEach(cb => {
         cb.checked = Array.isArray(med.days) && med.days.includes(parseInt(cb.value, 10));
     });
 
@@ -329,28 +340,34 @@ function resetMedicationForm() {
     elements.medTime.value = SLOT_DEFAULT_TIME[elements.medSlot.value] || '08:00';
     elements.medInventory.value = '14';
 
-    // Default days: if adding from a specific cell, pre-check that day only
-    elements.dayCheckboxes.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
-        if (pendingCompartment) {
-            cb.checked = parseInt(cb.value, 10) === pendingCompartment.day;
-        } else {
-            cb.checked = true; // default: every day
-        }
+    elements.dayCheckboxes.querySelectorAll('input[type=checkbox]').forEach(cb => {
+        cb.checked = pendingCompartment ? (parseInt(cb.value, 10) === pendingCompartment.day) : true;
     });
 }
 
-// Auto-adjust default time when slot changes (only if user hasn't typed a custom time)
 function handleSlotChange() {
     const slot = elements.medSlot.value;
-    const currentTime = elements.medTime.value;
-    // If the current time matches one of the slot defaults, update it
+    const current = elements.medTime.value;
     const defaults = Object.values(SLOT_DEFAULT_TIME);
-    if (!currentTime || defaults.includes(currentTime)) {
+    if (!current || defaults.includes(current)) {
         elements.medTime.value = SLOT_DEFAULT_TIME[slot];
     }
 }
 
-// ---------------- Summary ----------------
+// ---- Delete modal ----
+let pendingDeleteId = null;
+function openDeleteModal(medId) {
+    const med = state.medications.find(m => m.id === medId);
+    if (!med) return;
+    pendingDeleteId = medId;
+    const nameEl = document.getElementById('deleteMedName');
+    if (nameEl) nameEl.textContent = med.name + ' (' + med.dosage + ')';
+    const modal = document.getElementById('deleteModal');
+    if (modal) openModal(modal);
+    else if (confirm('Delete this medication?')) deleteMedication(medId); // fallback
+}
+
+// ---- Summary ----
 function generateSummary() {
     renderSummary(state, elements);
     openModal(elements.summaryModal);
@@ -361,9 +378,9 @@ function exportSummary() {
     const data = {
         generatedAt: new Date().toISOString(),
         stats: stats,
-        logs: logs.map(function (log) {
-            const med = state.medications.find(m => m.id === log.medicationId);
-            return Object.assign({}, log, {
+        logs: logs.map(l => {
+            const med = state.medications.find(m => m.id === l.medicationId);
+            return Object.assign({}, l, {
                 medicationName: med ? med.name : 'Unknown',
                 slot: med ? med.slot : '?'
             });
@@ -378,7 +395,7 @@ function exportSummary() {
     URL.revokeObjectURL(url);
 }
 
-// ---------------- Export/Import ----------------
+// ---- Export/Import ----
 function exportData() {
     const data = JSON.stringify(state, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
@@ -391,14 +408,23 @@ function exportData() {
 }
 function importData(file) {
     const reader = new FileReader();
-    reader.onload = function (e) {
+    reader.onload = e => {
         try {
             const imported = JSON.parse(e.target.result);
             if (imported.medications && imported.logs !== undefined) {
-                imported.medications.forEach(function (m) {
+                imported.medications.forEach(m => {
                     if (!Array.isArray(m.days)) m.days = [0,1,2,3,4,5,6];
                     if (!m.slot) m.slot = 'morning';
                     if (!m.time) m.time = '08:00';
+                });
+                imported.logs.forEach(l => {
+                    if (!l.date) {
+                        const d = new Date(l.timestamp);
+                        l.date = d.getFullYear() + '-' +
+                                 String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                                 String(d.getDate()).padStart(2, '0');
+                    }
+                    if (!l.id) l.id = 'log_' + Math.random().toString(36).substring(2, 10);
                 });
                 state = imported;
                 saveState(state);
@@ -414,7 +440,7 @@ function importData(file) {
     reader.readAsText(file);
 }
 
-// ---------------- Toast ----------------
+// ---- Toast ----
 function showToast(message) {
     const existing = document.querySelector('.toast-notification');
     if (existing) existing.remove();
@@ -422,26 +448,24 @@ function showToast(message) {
     toast.className = 'toast-notification';
     toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(function () {
+    setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transition = 'opacity 0.3s';
-        setTimeout(function () { toast.remove(); }, 300);
+        setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
 
-// ---------------- Medication form ----------------
+// ---- Medication form ----
 function setupMedicationForm() {
     elements.medSlot.addEventListener('change', handleSlotChange);
 
-    elements.medicationForm.addEventListener('submit', function (e) {
+    elements.medicationForm.addEventListener('submit', e => {
         e.preventDefault();
 
-        // Collect checked days
         const days = [];
-        elements.dayCheckboxes.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
+        elements.dayCheckboxes.querySelectorAll('input[type=checkbox]').forEach(cb => {
             if (cb.checked) days.push(parseInt(cb.value, 10));
         });
-
         if (days.length === 0) {
             alert('Please select at least one day.');
             return;
@@ -466,7 +490,7 @@ function setupMedicationForm() {
     });
 }
 
-// ---------------- Init ----------------
+// ---- Init ----
 function init() {
     const shareManager = new ShareManager(state, elements);
     const sharedData = shareManager.loadSharedData();
@@ -478,38 +502,34 @@ function init() {
 
     setTheme(state.theme || 'light');
 
-    elements.themeToggle.addEventListener('click', function () {
+    elements.themeToggle.addEventListener('click', () => {
         setTheme(state.theme === 'light' ? 'dark' : 'light');
     });
 
-    // Record dose — picks the earliest pending dose today
-    elements.recordDoseBtn.addEventListener('click', function () {
+    // Hero "Record Dose" — earliest unlogged TODAY
+    elements.recordDoseBtn.addEventListener('click', () => {
         const todayStr = getTodayStr();
+        const idx = buildLogIndex(state.logs);
+
         const pending = state.medications
             .filter(isMedToday)
-            .filter(function (med) {
-                return !state.logs.some(function (l) {
-                    return l.medicationId === med.id && l.timestamp.startsWith(todayStr);
-                });
-            })
-            .sort(function (a, b) { return a.time.localeCompare(b.time); });
+            .filter(m => !idx.has(m.id + '|' + todayStr))
+            .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
         if (pending.length === 0) {
             alert('All of today\u2019s doses are already logged.');
             return;
         }
-        openConfirmModal(pending[0].id);
+        openConfirmModal(pending[0].id, todayStr);
     });
 
-    // Add medication (global)
-    elements.addMedicationBtn.addEventListener('click', function () {
+    elements.addMedicationBtn.addEventListener('click', () => {
         pendingCompartment = null;
         resetMedicationForm();
         openModal(elements.medicationModal);
     });
 
-    // Add medication from a compartment cell
-    elements.addToCompartmentBtn.addEventListener('click', function () {
+    elements.addToCompartmentBtn.addEventListener('click', () => {
         closeModal(elements.compartmentModal);
         resetMedicationForm();
         openModal(elements.medicationModal);
@@ -517,22 +537,24 @@ function init() {
 
     setupMedicationForm();
 
-    // Confirm log
-    elements.confirmLogBtn.addEventListener('click', function () {
-        if (selectedMedId) logDose(selectedMedId);
-    });
+    // Confirm log (uses pendingLog internally)
+    elements.confirmLogBtn.addEventListener('click', logDose);
 
-    // Confirm delete
-    elements.confirmDeleteBtn.addEventListener('click', function () {
-        if (!pendingDeleteId) return;
-        deleteMedication(pendingDeleteId);
-        pendingDeleteId = null;
-        closeModal(elements.deleteModal);
-        showToast('Medication deleted.');
-    });
+    // Delete confirmation
+    const confirmDelBtn = document.getElementById('confirmDeleteBtn');
+    if (confirmDelBtn) {
+        confirmDelBtn.addEventListener('click', () => {
+            if (!pendingDeleteId) return;
+            deleteMedication(pendingDeleteId);
+            pendingDeleteId = null;
+            const modal = document.getElementById('deleteModal');
+            if (modal) closeModal(modal);
+            showToast('Medication deleted.');
+        });
+    }
 
     // History
-    elements.historyToggle.addEventListener('click', function () {
+    elements.historyToggle.addEventListener('click', () => {
         historyOpen = !historyOpen;
         renderHistory(state, elements, historyOpen);
     });
@@ -542,82 +564,61 @@ function init() {
     elements.exportSummaryBtn.addEventListener('click', exportSummary);
 
     // Caregiver
-    document.getElementById('caregiverBtn').addEventListener('click', function () {
+    document.getElementById('caregiverBtn').addEventListener('click', () => {
         const shareUrl = shareManager.generateShareLink();
-        if (!shareUrl) {
-            alert('Failed to generate share link.');
-            return;
-        }
+        if (!shareUrl) { alert('Failed to generate share link.'); return; }
         elements.shareLink.textContent = shareUrl;
         const qrContainer = elements.qrCode;
         if (window.QRCode && qrContainer) {
             qrContainer.innerHTML = '';
             try {
                 new QRCode(qrContainer, {
-                    text: shareUrl,
-                    width: 150,
-                    height: 150,
-                    colorDark: '#0052CC',
-                    colorLight: '#ffffff',
+                    text: shareUrl, width: 150, height: 150,
+                    colorDark: '#0052CC', colorLight: '#ffffff',
                     correctLevel: QRCode.CorrectLevel.H
                 });
-            } catch (err) {
-                console.warn('QR generation failed:', err);
-            }
+            } catch (err) { console.warn('QR gen failed:', err); }
         }
         openModal(elements.caregiverModal);
     });
 
-    elements.copyLinkBtn.addEventListener('click', function () {
+    elements.copyLinkBtn.addEventListener('click', () => {
         const link = elements.shareLink.textContent;
         if (!link || link === 'Generating link…') return;
-        const fallback = function () {
+        const fallback = () => {
             const ta = document.createElement('textarea');
-            ta.value = link;
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand('copy');
-            ta.remove();
+            ta.value = link; document.body.appendChild(ta);
+            ta.select(); document.execCommand('copy'); ta.remove();
             showToast('Link copied.');
         };
         if (navigator.clipboard) {
-            navigator.clipboard.writeText(link).then(function () {
-                showToast('Link copied.');
-            }).catch(fallback);
+            navigator.clipboard.writeText(link).then(() => showToast('Link copied.')).catch(fallback);
         } else fallback();
     });
 
-    elements.refreshShareLink.addEventListener('click', function () {
+    elements.refreshShareLink.addEventListener('click', () => {
         const shareUrl = shareManager.generateShareLink();
-        if (shareUrl) {
-            elements.shareLink.textContent = shareUrl;
-            showToast('New share link generated.');
-        }
+        if (shareUrl) { elements.shareLink.textContent = shareUrl; showToast('New share link generated.'); }
     });
 
-    elements.shareHistoryBtn.addEventListener('click', function () {
+    elements.shareHistoryBtn.addEventListener('click', () => {
         const history = shareManager.getShareHistory();
         if (history.length === 0) { showToast('No share history yet.'); return; }
-        const text = history.map(function (h, i) {
-            return (i + 1) + '. ' + new Date(h.date).toLocaleDateString() +
-                ' - ' + h.medications + ' medications';
-        }).join('\n');
-        alert('Share History:\n' + text);
+        alert('Share History:\n' + history.map((h, i) =>
+            (i + 1) + '. ' + new Date(h.date).toLocaleDateString() + ' - ' + h.medications + ' medications'
+        ).join('\n'));
     });
 
-    // Export / Import
+    // Export/Import
     elements.exportBtn.addEventListener('click', exportData);
-    elements.importBtn.addEventListener('click', function () { elements.importFileInput.click(); });
-    elements.importFileInput.addEventListener('change', function (e) {
-        if (e.target.files.length) {
-            importData(e.target.files[0]);
-            e.target.value = '';
-        }
+    elements.importBtn.addEventListener('click', () => elements.importFileInput.click());
+    elements.importFileInput.addEventListener('change', e => {
+        if (e.target.files.length) { importData(e.target.files[0]); e.target.value = ''; }
     });
 
-    // Modal close buttons
-    document.querySelectorAll('.modal-close, [data-modal]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
+    // Modal close
+    document.querySelectorAll('.modal-close, [data-modal]').forEach(btn => {
+        btn.addEventListener('click', () => {
             const modalId = btn.dataset.modal;
             if (modalId) {
                 const modal = document.getElementById(modalId);
@@ -626,8 +627,8 @@ function init() {
             }
         });
     });
-    document.querySelectorAll('.modal-overlay').forEach(function (modal) {
-        modal.addEventListener('click', function (e) {
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+        modal.addEventListener('click', e => {
             if (e.target === modal) {
                 closeModal(modal);
                 if (modal.id === 'deleteModal') pendingDeleteId = null;
@@ -635,14 +636,13 @@ function init() {
         });
     });
 
-    // Notifications
     notificationManager = initNotifications(state, saveState);
 
     checkMidnightReset();
     renderAll();
     startCooldownTimer();
 
-    setInterval(function () {
+    setInterval(() => {
         renderAll();
         checkMidnightReset();
     }, 30000);

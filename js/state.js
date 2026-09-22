@@ -81,6 +81,19 @@ export function loadState() {
                     return m;
                 });
             }
+            // Migrate old logs (no `date` field) — derive it from the timestamp's day-of-week
+            if (Array.isArray(parsed.logs)) {
+                parsed.logs = parsed.logs.map(function (l) {
+                    if (l.date) return l;
+                    // Best-effort: use the timestamp's local date
+                    const d = new Date(l.timestamp);
+                    l.date = d.getFullYear() + '-' +
+                             String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                             String(d.getDate()).padStart(2, '0');
+                    l.id = l.id || 'log_' + Math.random().toString(36).substring(2, 10);
+                    return l;
+                });
+            }
             return Object.assign({}, defaultState, parsed);
         }
     } catch (e) {

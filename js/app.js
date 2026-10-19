@@ -8,7 +8,7 @@ import {
     isMedToday, isOverdue, getSlotLabel,
     getAdherenceStats, getLogsForSummary,
     buildLogIndex, isLogged, buildLogStatusMap, getLogStatus,
-    SLOT_DEFAULT_TIME, DAY_FULL, DAY_COLORS
+    SLOT_DEFAULT_TIME, DAY_FULL, DAY_COLORS, t
 } from './utils.js';
 import { initNotifications } from './notifications.js';
 import { ShareManager } from './share.js';
@@ -17,6 +17,39 @@ import {
     renderRefillAlert, renderHistory, renderSummary, updateCooldown,
     renderDosePickerList
 } from './components.js';
+
+function applyLanguage() {
+    const lang = state.language || 'en';
+    if (elements.langToggle) elements.langToggle.checked = lang === 'tl';
+
+    const addBtn = document.getElementById('addMedicationBtn');
+    if (addBtn) addBtn.innerHTML = `<svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg> ${t('add', lang)}`;
+
+    const recordBtn = document.getElementById('recordDoseBtn');
+    if (recordBtn) recordBtn.innerHTML = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> ${t('recordDoses', lang)}`;
+
+    const headers = document.querySelectorAll('.section-title');
+    if (headers.length >= 2) {
+        if (headers[0].textContent.includes('Pillbox') || headers[0].textContent.includes('Lingguhan')) headers[0].textContent = t('weeklyPillbox', lang);
+        if (headers[1].textContent.includes('Doses') || headers[1].textContent.includes('Dosis')) headers[1].textContent = t('todaysDoses', lang);
+    }
+
+    document.querySelectorAll('.toggle-text').forEach(label => {
+        if (label.textContent.includes('Browser')) label.textContent = t('browserNotifs', lang);
+        if (label.textContent.includes('Email')) label.textContent = t('emailReminders', lang);
+        if (label.textContent.includes('Sound')) label.textContent = t('soundVibration', lang);
+    });
+}
+
+function applyTextSize() {
+    const size = state.textSize || 16;
+    // Apply the size to the HTML root element
+    document.documentElement.style.fontSize = size + 'px';
+
+    // Update slider UI
+    if (elements.textSizeSlider) elements.textSizeSlider.value = size;
+    if (elements.textSizeValue) elements.textSizeValue.textContent = size + 'px';
+}
 
 // ---- Splash ----
 (function runSplash() {
@@ -167,7 +200,14 @@ function setupFirstRunListeners() {
 // ---- DOM ----
 const elements = {
     themeToggle: document.getElementById('themeToggle'),
-    themeIcon: document.getElementById('themeIcon'),
+    langToggle: document.getElementById('langToggle'),
+    textSizeSlider: document.getElementById('textSizeSlider'),
+    textSizeValue: document.getElementById('textSizeValue'),
+    settingsBtn: document.getElementById('settingsBtn'),
+    printBtn: document.getElementById('printBtn'),
+    printContainer: document.getElementById('printContainer'),
+    printBody: document.getElementById('printBody'),
+    printDate: document.getElementById('printDate'),
     statusDot: document.getElementById('statusDot'),
     statusText: document.getElementById('statusText'),
     heroTimestamp: document.getElementById('heroTimestamp'),
@@ -196,6 +236,7 @@ const elements = {
     editId: document.getElementById('editId'),
     medName: document.getElementById('medName'),
     medDosage: document.getElementById('medDosage'),
+    medNotes: document.getElementById('medNotes'),
     medSlot: document.getElementById('medSlot'),
     medTime: document.getElementById('medTime'),
     medInventory: document.getElementById('medInventory'),
@@ -289,14 +330,8 @@ function captureUndo(snapshot) {
 function setTheme(theme) {
     state.theme = theme;
     document.documentElement.setAttribute('data-theme', theme);
+    if (elements.themeToggle) elements.themeToggle.checked = theme === 'dark';
     saveState(state);
-    updateThemeIcon();
-}
-function updateThemeIcon() {
-    const isDark = state.theme === 'dark';
-    elements.themeIcon.innerHTML = isDark
-        ? '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />'
-        : '<path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />';
 }
 
 // ---- Render ----
@@ -312,7 +347,8 @@ function renderAll() {
         onSkipDose:   quickSkipToday,
         onRefill:     refillMedication,       // ← new
         onEditMed:    openEditModal,
-        onDeleteMed:  openDeleteModal
+        onDeleteMed:  openDeleteModal,
+        onAddClick:   () => { resetMedicationForm(); openModal(elements.medicationModal); }
     });
     renderWarnings(state, elements);
     renderRefillAlert(state, elements);
@@ -355,6 +391,7 @@ function addMedication(data) {
         id: generateId(),
         name: data.name.trim(),
         dosage: data.dosage.trim(),
+        notes: data.notes,
         days: data.days.slice(),
         slot: data.slot,
         time: data.time,
@@ -371,6 +408,7 @@ function updateMedication(id, data) {
     if (!med) return;
     med.name = data.name.trim();
     med.dosage = data.dosage.trim();
+    med.notes = data.notes;
     med.days = data.days.slice();
     med.slot = data.slot;
     med.time = data.time;
@@ -609,6 +647,7 @@ function openEditModal(medId) {
     elements.editId.value = med.id;
     elements.medName.value = med.name;
     elements.medDosage.value = med.dosage;
+    elements.medNotes.value = med.notes || '';
     elements.medSlot.value = med.slot;
     elements.medTime.value = med.time;
     elements.medInventory.value = med.inventory;
@@ -626,6 +665,7 @@ function resetMedicationForm() {
     elements.editId.value = '';
     elements.medName.value = '';
     elements.medDosage.value = '';
+    elements.medNotes.value = '';
     elements.medSlot.value = pendingCompartment ? pendingCompartment.slot : 'morning';
     elements.medTime.value = SLOT_DEFAULT_TIME[elements.medSlot.value] || '08:00';
     elements.medInventory.value = '14';
@@ -1039,6 +1079,7 @@ function setupMedicationForm() {
         const data = {
             name: elements.medName.value,
             dosage: elements.medDosage.value,
+            notes: elements.medNotes.value.trim(),
             days: days,
             slot: elements.medSlot.value,
             time: elements.medTime.value,
@@ -1068,10 +1109,59 @@ function init() {
     // First-run flow setup
     setupFirstRunListeners();
 
+    elements.settingsBtn?.addEventListener('click', () => {
+        openModal(document.getElementById('settingsModal'));
+    });
+
     setTheme(state.theme || 'light');
 
-    elements.themeToggle.addEventListener('click', () => {
-        setTheme(state.theme === 'light' ? 'dark' : 'light');
+    elements.langToggle?.addEventListener('change', e => {
+        state.language = e.target.checked ? 'tl' : 'en';
+        saveState(state);
+        applyLanguage();
+        renderAll();
+    });
+
+    // Text Size Slider
+    if (elements.textSizeSlider) {
+        // Live update as they drag
+        elements.textSizeSlider.addEventListener('input', e => {
+            const newSize = parseInt(e.target.value, 10);
+            state.textSize = newSize;
+            applyTextSize();
+        });
+
+        // Save to localStorage when they release the slider
+        elements.textSizeSlider.addEventListener('change', () => {
+            saveState(state);
+        });
+    }
+
+    applyLanguage();
+    applyTextSize();
+
+    elements.printBtn?.addEventListener('click', () => {
+        if (state.medications.length === 0) {
+            showToast('No medications to print.', { type: 'warning' });
+            return;
+        }
+
+        elements.printDate.textContent = 'Generated: ' + new Date().toLocaleDateString();
+        elements.printBody.innerHTML = state.medications.map(med => {
+            const days = getDaysLabel(med);
+            const schedule = `${days} at ${formatTime(med.time)} (${getSlotLabel(med.slot)})`;
+            return `<tr>
+                <td><strong>${med.name}</strong></td>
+                <td>${med.dosage}</td>
+                <td>${schedule}</td>
+                <td>${med.notes || '—'}</td>
+            </tr>`;
+        }).join('');
+        window.print();
+    });
+
+    elements.themeToggle?.addEventListener('change', e => {
+        setTheme(e.target.checked ? 'dark' : 'light');
     });
 
     // Hero "Record Dose" — earliest unlogged TODAY

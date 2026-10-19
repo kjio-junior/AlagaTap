@@ -5,11 +5,17 @@ export const STORAGE_KEY = 'alagaTapData';
 // Default demo data — one medication per slot (every day)
 const defaultState = {
     theme: 'light',
+    textSize: 16,
+    language: 'en',
+    browserNotificationsEnabled: false,
+    emailRemindersEnabled: false,
+    soundEnabled: true,
     medications: [
         {
             id: 'med_1',
             name: 'Amlodipine',
             dosage: '5mg, 1 tablet',
+            notes: 'Take with breakfast',
             days: [0, 1, 2, 3, 4, 5, 6],   // every day
             slot: 'morning',
             time: '08:00',
@@ -21,6 +27,7 @@ const defaultState = {
             id: 'med_2',
             name: 'Metformin',
             dosage: '500mg, 1 tablet',
+            notes: '',
             days: [0, 1, 2, 3, 4, 5, 6],
             slot: 'noon',
             time: '12:30',
@@ -32,6 +39,7 @@ const defaultState = {
             id: 'med_3',
             name: 'Atorvastatin',
             dosage: '20mg, 1 tablet',
+            notes: 'Avoid grapefruit',
             days: [0, 1, 2, 3, 4, 5, 6],
             slot: 'night',
             time: '21:00',
@@ -44,12 +52,8 @@ const defaultState = {
     lastDoseTimestamp: null,
     cooldownUntil: null,
     caregiverShareCode: 'share_' + Math.random().toString(36).substring(2, 10),
-    notificationsEnabled: false,
-    browserNotificationsEnabled: false,
-    emailRemindersEnabled: false,
     lastResetDate: null,
-    scheduleFrequency: 'daily',
-    soundEnabled: true
+    scheduleFrequency: 'daily'
 };
 
 export function loadState() {
@@ -57,47 +61,16 @@ export function loadState() {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (raw) {
             const parsed = JSON.parse(raw);
-            // Migrate legacy compartment field if present
             if (Array.isArray(parsed.medications)) {
-                parsed.medications = parsed.medications.map(function (m) {
-                    // Old model had `compartment: 'A'|'B'|'C'` and `schedule` (ISO).
-                    // If so, translate to new model (days + slot + time).
-                    if (m.compartment && !m.slot) {
-                        const map = { A: 'morning', B: 'noon', C: 'night' };
-                        m.slot = map[m.compartment] || 'morning';
-                        m.days = [0, 1, 2, 3, 4, 5, 6];
-                        if (m.schedule) {
-                            const d = new Date(m.schedule);
-                            const hh = String(d.getHours()).padStart(2, '0');
-                            const mm = String(d.getMinutes()).padStart(2, '0');
-                            m.time = hh + ':' + mm;
-                        } else {
-                            m.time = '08:00';
-                        }
-                        delete m.compartment;
-                        delete m.schedule;
+                parsed.medications.forEach(function (m) {
+                    if (!m.compartment) {
+                        if (!Array.isArray(m.days)) m.days = [0, 1, 2, 3, 4, 5, 6];
+                        if (!m.slot) m.slot = 'morning';
+                        if (!m.time) m.time = '08:00';
                     }
-                    // Safety: ensure days array exists
-                    if (!Array.isArray(m.days)) m.days = [0, 1, 2, 3, 4, 5, 6];
-                    if (!m.slot) m.slot = 'morning';
-                    if (!m.time) m.time = '08:00';
-                    return m;
+                    if (typeof m.notes !== 'string') m.notes = '';
                 });
             }
-            // Migrate old logs (no `date` field) — derive it from the timestamp's day-of-week
-            if (Array.isArray(parsed.logs)) {
-                parsed.logs = parsed.logs.map(function (l) {
-                    if (l.date) return l;
-                    // Best-effort: use the timestamp's local date
-                    const d = new Date(l.timestamp);
-                    l.date = d.getFullYear() + '-' +
-                             String(d.getMonth() + 1).padStart(2, '0') + '-' +
-                             String(d.getDate()).padStart(2, '0');
-                    l.id = l.id || 'log_' + Math.random().toString(36).substring(2, 10);
-                    return l;
-                });
-            }
-            // Migration: split the old single toggle into browser + email flags
             if (typeof parsed.browserNotificationsEnabled !== 'boolean') {
                 parsed.browserNotificationsEnabled = parsed.notificationsEnabled === true;
             }
@@ -107,6 +80,11 @@ export function loadState() {
             if (typeof parsed.soundEnabled !== 'boolean') {
                 parsed.soundEnabled = true;
             }
+            // Migrate old string-based text sizes
+            if (parsed.textSize === 'normal') parsed.textSize = 16;
+            if (parsed.textSize === 'large') parsed.textSize = 20;
+            if (typeof parsed.textSize !== 'number') parsed.textSize = 16;
+            if (!parsed.language) parsed.language = 'en';
             return Object.assign({}, defaultState, parsed);
         }
     } catch (e) {

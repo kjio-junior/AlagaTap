@@ -5,10 +5,10 @@ import {
     getTodayStr, getTodayDay, getDatesOfThisWeek,
     getStatusText, getLastDoseTime, isMedToday, isOverdue,
     getSlotLabel, getAdherenceStats, getLogsForSummary,
-    buildLogIndex, isLogged,
-    buildLogStatusMap,
+    buildLogIndex, isLogged, buildLogStatusMap,
+    getGreeting, getStreak,
     DAY_SHORT, DAY_COLORS, SLOT_ORDER, SLOT_LABELS,
-    getGreeting, getStreak
+    getDaysLeft, getRefillDate, t
 } from './utils.js';
 
 // ================= HERO =================
@@ -26,10 +26,10 @@ export function renderHero(state, elements) {
         const streak = getStreak(state);
         if (streak >= 2) {
             elements.heroStreak.classList.remove('hidden');
+            // Real Heroicons Flame SVG
             elements.heroStreak.innerHTML =
-                '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
-                    '<path d="M12.75 3.75a.75.75 0 00-1.5 0v.75H7.5A2.25 2.25 0 005.25 6.75v10.5A2.25 2.25 0 007.5 19.5h9a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0016.5 4.5h-3.75v-.75zM9 9.75h6M9 13.5h6M9 17.25h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>' +
-                    '<path d="M12.5 8.25l-1.5 3h2.25l-1.5 3" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+                '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="width:14px;height:14px;fill:#FFB800;">' +
+                    '<path fill-rule="evenodd" d="M12.963 2.286a.75.75 0 00-1.071-.136 9.742 9.742 0 00-3.539 6.177A7.547 7.547 0 016.648 6.61a.75.75 0 00-1.152-.082A9 9 0 1015.68 4.534a7.46 7.46 0 01-2.717-2.248zM15.75 14.25a3.75 3.75 0 11-7.313-1.172c.628.465 1.35.81 2.133 1a5.99 5.99 0 011.925-3.546 3.75 3.75 0 013.255 3.718z" clip-rule="evenodd" />' +
                 '</svg>' +
                 streak + ' day streak';
         } else {
@@ -128,6 +128,11 @@ function attachSwipeHandlers(cell, date, callbacks) {
 export function renderPillboxGrid(state, elements, callbacks) {
     const grid = elements.pillboxGrid;
     if (!grid) return;
+
+    if (state.medications.length === 0) {
+        grid.innerHTML = '<div class="empty-state"><p>No medications added yet.</p></div>';
+        return;
+    }
 
     const todayDay = getTodayDay();
     const weekDates = getDatesOfThisWeek();
@@ -237,6 +242,24 @@ export function renderTodayList(state, elements, callbacks) {
     const list = elements.compartmentList;
     if (!list) return;
 
+    if (state.medications.length === 0) {
+        list.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">💊</div>
+                <h3>No medications yet</h3>
+                <p>Add your first medication to start tracking your daily doses.</p>
+                <button class="empty-state-btn" id="emptyAddBtn">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    ${t('add', state.language)}
+                </button>
+            </div>
+        `;
+        document.getElementById('emptyAddBtn')?.addEventListener('click', callbacks.onAddClick || (() => {}));
+        return;
+    }
+
     const todayStr = getTodayStr();
     const todayDay = getTodayDay();
     const statusMap = buildLogStatusMap(state.logs);
@@ -253,8 +276,20 @@ export function renderTodayList(state, elements, callbacks) {
         const status = statusMap.get(med.id + '|' + todayStr) || null;
         const overdue = !status && isOverdue(med);
         const low = med.inventory <= 3;
-        const out = med.inventory <= 0;
         const dayColor = DAY_COLORS[todayDay];
+
+        const daysLeft = getDaysLeft(med);
+        let refillText = '';
+        if (med.inventory <= 0) {
+            refillText = 'Out of stock';
+        } else if (daysLeft <= 7) {
+            const dateStr = getRefillDate(med);
+            refillText = `Only ${med.inventory} left (refill by ${dateStr})`;
+        } else {
+            refillText = `${med.inventory} doses remaining`;
+        }
+        const refillColor = med.inventory <= 3 ? 'color:#FF5252; font-weight:600;' : '';
+        const notesHtml = med.notes ? `<div class="compartment-notes">${med.notes}</div>` : '';
 
         const takenBadge   = status === 'taken'   ? '<span class="status-badge taken">Taken</span>'   : '';
         const missedBadge  = status === 'missed'  ? '<span class="status-badge missed">Missed</span>' : '';
@@ -296,10 +331,9 @@ export function renderTodayList(state, elements, callbacks) {
                         ${missedBadge}
                     </div>
                     <div class="compartment-detail">${med.dosage} &middot; ${formatTime(med.time)}</div>
-                    <div class="compartment-inventory">
-                        ${out ? 'Out of stock' :
-                          low ? 'Refill needed: ' + med.inventory + ' doses left' :
-                                med.inventory + ' doses remaining'}
+                    ${notesHtml}
+                    <div class="compartment-inventory" style="${refillColor}">
+                        ${refillText}
                     </div>
                 </div>
                 <div class="compartment-actions">

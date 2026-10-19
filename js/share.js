@@ -22,6 +22,7 @@ export class ShareManager {
                 id:   m.id,
                 n:    m.name,
                 d:    m.dosage,
+                nt:   m.notes || '',
                 slot: m.slot,
                 days: m.days,
                 time: m.time,
@@ -75,6 +76,7 @@ export class ShareManager {
             id:        m.id || m.n,
             name:      m.n,
             dosage:    m.d,
+            notes:     m.nt || '',
             slot:      m.slot || 'morning',
             days:      Array.isArray(m.days) ? m.days : [0,1,2,3,4,5,6],
             time:      m.time || '08:00',
@@ -167,6 +169,7 @@ export class ShareManager {
                             '<div class="ro-med-detail">' + this._esc(m.dosage) +
                                 ' &middot; ' + formatTime(m.time) +
                                 ' &middot; ' + daysLabel + '</div>' +
+                            (m.notes ? '<div class="ro-med-notes" style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:2px;">' + this._esc(m.notes) + '</div>' : '') +
                         '</div>';
                     }).join('');
                 scheduleSection.appendChild(group);

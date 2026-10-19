@@ -254,3 +254,119 @@ export function getStreak(state) {
 
     return streak;
 }
+
+// ============================================================
+// I18N (EN / TL)
+// ============================================================
+export const TRANSLATIONS = {
+    en: {
+        // Header & Nav
+        add: 'Add',
+        help: 'Help',
+        caregiver: 'Caregiver',
+        summary: 'Summary',
+        // Hero
+        recordDoses: 'Record Doses',
+        // Sections
+        reminderMethods: 'Reminder Methods',
+        weeklyPillbox: 'Weekly Pillbox',
+        todaysDoses: "Today's Doses",
+        intakeHistory: 'Intake History',
+        // Toggles
+        browserNotifs: 'Browser Notifications',
+        emailReminders: 'Email Reminders',
+        soundVibration: 'Sound & Vibration',
+        // Form
+        medName: 'Medicine Name',
+        dosage: 'Dosage',
+        notes: 'Notes (e.g. take with food)',
+        days: 'Days',
+        timeOfDay: 'Time of Day',
+        time: 'Time',
+        inventory: 'Initial Inventory (doses)',
+        save: 'Save',
+        cancel: 'Cancel',
+        edit: 'Edit',
+        delete: 'Delete',
+        morning: 'Morning',
+        noon: 'Noon',
+        night: 'Night',
+        // Statuses
+        taken: 'Taken',
+        missed: 'Missed',
+        skipped: 'Skipped',
+        // Actions
+        refill: 'Refill',
+        logDose: 'Log dose',
+        skipToday: "Skip today's dose",
+        exportData: 'Export Data',
+        importData: 'Import Data',
+        printSummary: 'Print / Doctor Summary',
+        addToCalendar: 'Add to Calendar'
+    },
+    tl: {
+        add: 'Idagdag',
+        help: 'Tulong',
+        caregiver: 'Tagapag-alaga',
+        summary: 'Buod',
+        recordDoses: 'Itala ang Dosis',
+        reminderMethods: 'Mga Paraan ng Paalala',
+        weeklyPillbox: 'Lingguhang Pillbox',
+        todaysDoses: 'Mga Dosis Ngayong Araw',
+        intakeHistory: 'Kasaysayan ng Inumin',
+        browserNotifs: 'Mga Abiso sa Browser',
+        emailReminders: 'Mga Paalala sa Email',
+        soundVibration: 'Tunog at Vibrasyon',
+        medName: 'Pangalan ng Gamot',
+        dosage: 'Dosis',
+        notes: 'Mga Tala (hal. inumin pagkatapos kumain)',
+        days: 'Mga Araw',
+        timeOfDay: 'Oras ng Araw',
+        time: 'Oras',
+        inventory: 'Paunang Imbentaryo (dosis)',
+        save: 'I-save',
+        cancel: 'Kanselahin',
+        edit: 'I-edit',
+        delete: 'Burahin',
+        morning: 'Umaga',
+        noon: 'Tanghali',
+        night: 'Gabi',
+        taken: 'Nainom',
+        missed: 'Nakalimutan',
+        skipped: 'Nilaktawan',
+        refill: 'Dagdagan',
+        logDose: 'Itala',
+        skipToday: 'Laktawan ngayong araw',
+        exportData: 'I-export ang Data',
+        importData: 'I-import ang Data',
+        printSummary: 'I-print / Para sa Doktor',
+        addToCalendar: 'Idagdag sa Kalendaryo'
+    }
+};
+
+export function t(key, lang = 'en') {
+    return TRANSLATIONS[lang]?.[key] || TRANSLATIONS.en[key] || key;
+}
+
+// ============================================================
+// REFILL PREDICTION
+// ============================================================
+// Returns the number of days remaining based on days-per-week
+export function getDaysLeft(med) {
+    if (!med.inventory || med.inventory <= 0) return 0;
+    const daysPerWeek = Array.isArray(med.days) ? med.days.length : 7;
+    if (daysPerWeek === 0) return 999; // Not scheduled
+
+    // Daily rate (e.g., 7 days / 7 = 1 per day. 3 days / 7 = 0.42 per day)
+    const dailyRate = daysPerWeek / 7;
+    return Math.floor(med.inventory / dailyRate);
+}
+
+export function getRefillDate(med) {
+    const daysLeft = getDaysLeft(med);
+    if (daysLeft > 14) return null; // Only warn if less than 2 weeks
+
+    const d = new Date();
+    d.setDate(d.getDate() + daysLeft);
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}

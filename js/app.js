@@ -26,6 +26,144 @@ import {
     setTimeout(() => { if (s.parentNode) s.parentNode.removeChild(s); }, 2200);
 })();
 
+// ============================================================
+// FIRST-RUN FLOW: Welcome → Role → Tutorial prompt → Tutorial
+// ============================================================
+const WELCOME_KEY  = 'alagaTapWelcomed';
+const ROLE_KEY     = 'alagaTapUserRole';
+const TUTORIAL_KEY = 'alagaTapTutorialSeen';
+
+let currentTutorialSlide = 0;
+const TOTAL_TUTORIAL_SLIDES = 7;
+
+function shouldRunFirstRun() {
+    return localStorage.getItem(WELCOME_KEY) !== 'true';
+}
+
+function openWelcomeModal() {
+    const modal = document.getElementById('welcomeModal');
+    const roleScreen = document.getElementById('welcomeScreenRole');
+    const tourScreen = document.getElementById('welcomeScreenTour');
+    if (!modal) return;
+
+    roleScreen.classList.remove('hidden');
+    tourScreen.classList.add('hidden');
+    openModal(modal);
+}
+
+function closeWelcomeModal() {
+    const modal = document.getElementById('welcomeModal');
+    if (modal) closeModal(modal);
+}
+
+function pickRole(role) {
+    localStorage.setItem(ROLE_KEY, role);
+    console.log('[AlagaTap] User role:', role);
+
+    // Move to tour prompt screen
+    document.getElementById('welcomeScreenRole').classList.add('hidden');
+    document.getElementById('welcomeScreenTour').classList.remove('hidden');
+}
+
+function finishFirstRun() {
+    localStorage.setItem(WELCOME_KEY, 'true');
+    closeWelcomeModal();
+}
+
+function openTutorial(startSlide) {
+    currentTutorialSlide = startSlide || 0;
+    updateTutorialSlide();
+    openModal(document.getElementById('tutorialModal'));
+}
+
+function closeTutorial() {
+    localStorage.setItem(TUTORIAL_KEY, 'true');
+    closeModal(document.getElementById('tutorialModal'));
+}
+
+function updateTutorialSlide() {
+    document.querySelectorAll('.tutorial-slide').forEach((slide, idx) => {
+        slide.classList.toggle('hidden', idx !== currentTutorialSlide);
+    });
+    document.querySelectorAll('.progress-dot').forEach((dot, idx) => {
+        dot.classList.toggle('active', idx === currentTutorialSlide);
+    });
+
+    const backBtn = document.getElementById('tutorialBack');
+    const nextBtn = document.getElementById('tutorialNext');
+    backBtn.style.visibility = currentTutorialSlide === 0 ? 'hidden' : 'visible';
+    nextBtn.textContent = currentTutorialSlide === TOTAL_TUTORIAL_SLIDES - 1
+        ? 'Get Started'
+        : 'Next';
+}
+
+function nextTutorialSlide() {
+    if (currentTutorialSlide < TOTAL_TUTORIAL_SLIDES - 1) {
+        currentTutorialSlide++;
+        updateTutorialSlide();
+    } else {
+        closeTutorial();
+        showToast('Welcome to AlagaTap!');
+    }
+}
+
+function prevTutorialSlide() {
+    if (currentTutorialSlide > 0) {
+        currentTutorialSlide--;
+        updateTutorialSlide();
+    }
+}
+
+function setupFirstRunListeners() {
+    // Role buttons
+    document.querySelectorAll('.role-btn').forEach(btn => {
+        btn.addEventListener('click', () => pickRole(btn.dataset.role));
+    });
+
+    // Skip setup
+    document.getElementById('welcomeSkip')?.addEventListener('click', finishFirstRun);
+
+    // Tour prompt actions
+    document.getElementById('tourSkip')?.addEventListener('click', finishFirstRun);
+    document.getElementById('tourStart')?.addEventListener('click', () => {
+        finishFirstRun();
+        setTimeout(() => openTutorial(0), 250);
+    });
+
+    // Tutorial nav
+    document.getElementById('tutorialNext')?.addEventListener('click', nextTutorialSlide);
+    document.getElementById('tutorialBack')?.addEventListener('click', prevTutorialSlide);
+    document.getElementById('tutorialClose')?.addEventListener('click', closeTutorial);
+
+    // Help button → help menu
+    document.getElementById('helpBtn')?.addEventListener('click', () => {
+        openModal(document.getElementById('helpMenuModal'));
+    });
+
+    // Help menu → replay tour
+    document.getElementById('replayTourBtn')?.addEventListener('click', () => {
+        closeModal(document.getElementById('helpMenuModal'));
+        setTimeout(() => openTutorial(0), 250);
+    });
+
+    // Help menu → feature guide
+    document.getElementById('featureGuideBtn')?.addEventListener('click', () => {
+        closeModal(document.getElementById('helpMenuModal'));
+        setTimeout(() => {
+            openModal(document.getElementById('featureGuideModal'));
+        }, 250);
+    });
+
+    // Keyboard nav (nice-to-have)
+    document.addEventListener('keydown', (e) => {
+        const modal = document.getElementById('tutorialModal');
+        if (!modal || modal.classList.contains('hidden')) return;
+        if (e.key === 'ArrowRight') nextTutorialSlide();
+        if (e.key === 'ArrowLeft')  prevTutorialSlide();
+        if (e.key === 'Escape')     closeTutorial();
+    });
+}
+
 // ---- DOM ----
 const elements = {
     themeToggle: document.getElementById('themeToggle'),
@@ -80,6 +218,9 @@ const elements = {
     confirmLogBtn: document.getElementById('confirmLogBtn'),
     dosePickerModal: document.getElementById('dosePickerModal'),
     dosePickerList: document.getElementById('dosePickerList'),
+    heroGreeting: document.getElementById('heroGreeting'),
+    heroStreak: document.getElementById('heroStreak'),
+    toastContainer: document.getElementById('toastContainer'),
 };
 elements.onPickerAction = function (medId, date, status) {
     logDose(medId, date, status);
@@ -91,6 +232,58 @@ let cooldownInterval = null;
 let notificationManager = null;
 let pendingCompartment = null;         // {day, slot} for "Add from cell"
 let pendingLog = { medId: null, date: null }; // <-- the new pending-log context
+
+// ============================================================
+// UNDO SYSTEM
+// ============================================================
+let lastAction = null;
+let undoTimer = null;
+
+function snapshotBeforeLog(medId, date) {
+    const med = state.medications.find(m => m.id === medId);
+    if (!med) return null;
+
+    const prevLog = state.logs.find(l => l.medicationId === medId && l.date === date);
+
+    return {
+        medId,
+        date,
+        prevInventory: med.inventory,
+        prevLog: prevLog ? JSON.parse(JSON.stringify(prevLog)) : null,
+        capturedAt: Date.now()
+    };
+}
+
+function performUndo() {
+    if (!lastAction) return;
+
+    const { medId, date, prevInventory, prevLog } = lastAction;
+
+    // Restore inventory
+    const med = state.medications.find(m => m.id === medId);
+    if (med) med.inventory = prevInventory;
+
+    // Remove the action's log for this (medId, date)
+    state.logs = state.logs.filter(l => !(l.medicationId === medId && l.date === date));
+
+    // Restore the previous log if it existed
+    if (prevLog) state.logs.push(prevLog);
+
+    lastAction = null;
+    if (undoTimer) { clearTimeout(undoTimer); undoTimer = null; }
+
+    saveState(state);
+    renderAll();
+
+    showToast('Undone.', { type: 'warning', duration: 2000 });
+}
+
+// Called by logDose before mutating state
+function captureUndo(snapshot) {
+    lastAction = snapshot;
+    if (undoTimer) clearTimeout(undoTimer);
+    undoTimer = setTimeout(() => { lastAction = null; }, 6500);
+}
 
 // ---- Theme ----
 function setTheme(theme) {
@@ -109,11 +302,17 @@ function updateThemeIcon() {
 // ---- Render ----
 function renderAll() {
     renderHero(state, elements);
-    renderPillboxGrid(state, elements, { onCellClick: openCompartmentModal });
+    renderPillboxGrid(state, elements, {
+        onCellClick:   openCompartmentModal,
+        onSwipeTaken:  dateSwipeTaken,
+        onSwipeMissed: dateSwipeMissed
+    });
     renderTodayList(state, elements, {
-        onLogDose: openDosePickerAt,
-        onEditMed: openEditModal,
-        onDeleteMed: openDeleteModal
+        onLogDose:    openDosePickerAt,
+        onSkipDose:   quickSkipToday,
+        onRefill:     refillMedication,       // ← new
+        onEditMed:    openEditModal,
+        onDeleteMed:  openDeleteModal
     });
     renderWarnings(state, elements);
     renderRefillAlert(state, elements);
@@ -127,6 +326,27 @@ function renderAll() {
 function openDosePickerAt(medId) {
     renderDosePickerList(state, elements);
     openModal(elements.dosePickerModal);
+}
+
+function quickSkipToday(medId) {
+    const med = state.medications.find(m => m.id === medId);
+    if (!med) return;
+
+    // If already logged today, ask before overwriting
+    const todayStr = getTodayStr();
+    const existing = state.logs.find(l =>
+        l.medicationId === medId && l.date === todayStr
+    );
+
+    if (existing && existing.status !== 'skipped') {
+        const ok = confirm(
+            'Today\'s ' + med.name + ' is already marked as ' +
+            (existing.status || 'taken') + '.\n\nChange to Skipped?'
+        );
+        if (!ok) return;
+    }
+
+    logDose(medId, todayStr, 'skipped');
 }
 
 // ---- CRUD ----
@@ -174,28 +394,38 @@ function logDose(medId, date, status) {
     if (!med) return;
 
     const todayStr = getTodayStr();
-    const isToday = date === todayStr;
+    const isToday  = date === todayStr;
 
     const existingLog = state.logs.find(l => l.medicationId === medId && l.date === date);
     const existingStatus = existingLog ? (existingLog.status || 'taken') : null;
 
-    // Cooldown only blocks a FRESH 'taken' for TODAY
     if (status === 'taken' && isToday && existingStatus !== 'taken' &&
         state.cooldownUntil && Date.now() < state.cooldownUntil) {
         const remaining = Math.ceil((state.cooldownUntil - Date.now()) / 1000);
-        showToast('Cooldown active — wait ' + remaining + 's before logging another taken dose.');
+        showToast('Cooldown active — wait ' + remaining + 's before logging another taken dose.', {
+            type: 'warning'
+        });
         return;
     }
 
-    if (existingStatus === 'taken' && status === 'missed') {
+    // === Capture undo snapshot BEFORE mutating ===
+    const snapshot = snapshotBeforeLog(medId, date);
+
+    // ---- Inventory adjustments ----
+    if (existingStatus === 'taken' && status !== 'taken') {
+        // Refund: was taken, now not taken
         med.inventory = Math.min(med.maxInventory || 14, med.inventory + 1);
     } else if (existingStatus !== 'taken' && status === 'taken') {
+        // Deduct: being marked as taken
         if (med.inventory <= 0) {
             alert('No doses remaining. Please refill this medication.');
             return;
         }
         med.inventory = Math.max(0, med.inventory - 1);
     }
+    // (skipped ↔ missed or same → same: no change)
+
+    // Replace any existing log for this (medId, date)
     if (existingLog) {
         state.logs = state.logs.filter(l => l !== existingLog);
     }
@@ -210,25 +440,53 @@ function logDose(medId, date, status) {
         doseType: 'Self-Reported'
     });
 
-    // Cooldown only starts when logging a fresh 'taken' for today
+    // Cooldown only starts on a fresh 'taken' for today
     if (status === 'taken' && isToday) {
         state.cooldownUntil = Date.now() + 5 * 60 * 1000;
         startCooldownTimer();
     }
-    state.lastDoseTimestamp = new Date().toISOString();
 
+    state.lastDoseTimestamp = new Date().toISOString();
     saveState(state);
     renderAll();
 
-    // Refresh picker if it's open — reuse last used context
+    // Refresh picker if open
     if (!elements.dosePickerModal.classList.contains('hidden')) {
         renderDosePickerList(state, elements, date, med.slot);
     }
 
-    const label = status === 'taken' ? 'taken' : 'missed';
     const when = isToday ? '' : ' for ' + formatDateShort(date);
-    showToast(getSlotLabel(med.slot) + ' ' + med.name + ' marked as ' + label + when + '.');
+    const statusText = status === 'taken' ? 'taken'
+                     : status === 'skipped' ? 'skipped'
+                     : 'missed';
+    const verb = 'marked as ' + statusText;
+
+    showToast(
+        getSlotLabel(med.slot) + ' ' + med.name + ' ' + verb + when + '.',
+        {
+            type: status === 'taken' ? 'success'
+                : status === 'skipped' ? 'warning'
+                : 'error',
+            duration: 6500,
+            action: {
+                label: 'Undo',
+                onClick: performUndo
+            }
+        }
+    );
+
+    if (snapshot) captureUndo(snapshot);
+    feedbackSuccess(status);
+
+    if (notificationManager && typeof notificationManager.updateBadge === 'function') {
+        notificationManager.updateBadge();
+    }
+
 }
+
+window.logDoseFromAlert = function (medId, date, status) {
+    logDose(medId, date, status);
+};
 
 function startCooldownTimer() {
     if (cooldownInterval) clearInterval(cooldownInterval);
@@ -446,6 +704,134 @@ function exportData() {
     a.click();
     URL.revokeObjectURL(url);
 }
+
+// ============================================================
+// CALENDAR EXPORT (.ics)
+// ============================================================
+const DAY_ICS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function formatICSDate(date, utc) {
+    const y = utc ? date.getUTCFullYear() : date.getFullYear();
+    const mo = utc ? date.getUTCMonth() + 1 : date.getMonth() + 1;
+    const d = utc ? date.getUTCDate() : date.getDate();
+    const h = utc ? date.getUTCHours() : date.getHours();
+    const mi = utc ? date.getUTCMinutes() : date.getMinutes();
+    const s = utc ? date.getUTCSeconds() : date.getSeconds();
+    return y + pad2(mo) + pad2(d) + 'T' + pad2(h) + pad2(mi) + pad2(s) + (utc ? 'Z' : '');
+}
+
+function escapeICS(str) {
+    return String(str)
+        .replace(/\\/g, '\\\\')
+        .replace(/;/g, '\\;')
+        .replace(/,/g, '\\,')
+        .replace(/\n/g, '\\n');
+}
+
+function foldLine(line) {
+    // Fold at 75 octets per RFC 5545, continuation lines start with a space
+    const bytes = new TextEncoder().encode(line);
+    if (bytes.length <= 75) return line;
+    const out = [];
+    let start = 0;
+    while (start < line.length) {
+        let end = Math.min(start + 75, line.length);
+        out.push((start === 0 ? '' : ' ') + line.slice(start, end));
+        start = end;
+    }
+    return out.join('\r\n');
+}
+
+function generateICS(medications, reminderMinutes) {
+    const now = new Date();
+    const dtstamp = formatICSDate(now, true);
+    const lines = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//AlagaTap//Medication Reminders//EN',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH'
+    ];
+
+    medications.forEach(med => {
+        if (!Array.isArray(med.days) || med.days.length === 0) return;
+        if (!med.time) return;
+
+        const [hh, mm] = med.time.split(':').map(Number);
+
+        // First matching day on or after today
+        let firstDate = null;
+        for (let offset = 0; offset < 7; offset++) {
+            const cand = new Date(now);
+            cand.setDate(now.getDate() + offset);
+            cand.setHours(hh, mm, 0, 0);
+            if (med.days.includes(cand.getDay())) {
+                firstDate = cand;
+                break;
+            }
+        }
+        if (!firstDate) return;
+
+        const dtstart = formatICSDate(firstDate, false);
+        const byday = med.days.map(d => DAY_ICS[d]).join(',');
+
+        lines.push('BEGIN:VEVENT');
+        lines.push('UID:' + med.id + '@alagatap');
+        lines.push('DTSTAMP:' + dtstamp);
+        lines.push('DTSTART:' + dtstart);
+        lines.push('RRULE:FREQ=WEEKLY;BYDAY=' + byday);
+        lines.push('SUMMARY:' + escapeICS('Take ' + med.name + ' (' + med.dosage + ')'));
+        lines.push('DESCRIPTION:' + escapeICS(
+            'Slot: ' + getSlotLabel(med.slot) + '. Dosage: ' + med.dosage +
+            '. Log your dose in AlagaTap.'
+        ));
+
+        // Pre-alert
+        lines.push('BEGIN:VALARM');
+        lines.push('ACTION:DISPLAY');
+        lines.push('DESCRIPTION:' + escapeICS(med.name + ' in ' + reminderMinutes + ' min'));
+        lines.push('TRIGGER:-PT' + reminderMinutes + 'M');
+        lines.push('END:VALARM');
+
+        // On-time alert
+        lines.push('BEGIN:VALARM');
+        lines.push('ACTION:DISPLAY');
+        lines.push('DESCRIPTION:' + escapeICS('Take ' + med.name + ' now'));
+        lines.push('TRIGGER:PT0M');
+        lines.push('END:VALARM');
+
+        lines.push('END:VEVENT');
+    });
+
+    lines.push('END:VCALENDAR');
+
+    // Fold and join with CRLF
+    return lines.map(foldLine).join('\r\n') + '\r\n';
+}
+
+function exportCalendar() {
+    if (!state.medications || state.medications.length === 0) {
+        showToast('Add a medication first, then export again.', { type: 'warning' });
+        return;
+    }
+
+    const reminderMinutes = 3;
+    const ics = generateICS(state.medications, reminderMinutes);
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'alagatap-reminders.ics';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    showToast('Calendar file downloaded. Open it in your calendar app.', { type: 'success' });
+}
+
 function importData(file) {
     const reader = new FileReader();
     reader.onload = e => {
@@ -480,19 +866,158 @@ function importData(file) {
     reader.readAsText(file);
 }
 
-// ---- Toast ----
-function showToast(message) {
-    const existing = document.querySelector('.toast-notification');
-    if (existing) existing.remove();
+// ============================================================
+// TOAST (stackable, with optional Undo action)
+// ============================================================
+function showToast(message, options) {
+    options = options || {};
+    const duration = options.duration != null ? options.duration : 3000;
+    const type     = options.type || 'default';
+    const action   = options.action || null;   // { label, onClick }
+
+    const container = elements.toastContainer || document.body;
     const toast = document.createElement('div');
-    toast.className = 'toast-notification';
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => {
+    toast.className = 'toast-notification' +
+        (type !== 'default' ? ' ' + type : '');
+
+    const msg = document.createElement('span');
+    msg.className = 'toast-msg';
+    msg.textContent = message;
+    toast.appendChild(msg);
+
+    let dismissTimer = null;
+
+    function dismiss() {
+        if (dismissTimer) clearTimeout(dismissTimer);
         toast.style.opacity = '0';
-        toast.style.transition = 'opacity 0.3s';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+        toast.style.transition = 'opacity 0.25s ease';
+        setTimeout(() => toast.remove(), 260);
+    }
+
+    if (action) {
+        const btn = document.createElement('button');
+        btn.className = 'toast-action';
+        btn.textContent = action.label;
+        btn.addEventListener('click', () => {
+            try { action.onClick(); } catch (err) { console.warn(err); }
+            dismiss();
+        });
+        toast.appendChild(btn);
+    }
+
+    container.appendChild(toast);
+
+    if (duration > 0) {
+        dismissTimer = setTimeout(dismiss, duration);
+    }
+}
+
+// ============================================================
+// FEEDBACK — vibration + subtle sound on log actions
+// ============================================================
+let audioCtx = null;
+
+function feedbackSuccess(status) {
+    // Vibration
+    if (navigator.vibrate) {
+        if (status === 'taken')   navigator.vibrate([20, 40, 20]);
+        else if (status === 'skipped') navigator.vibrate(15);
+        else /* missed */         navigator.vibrate([30, 50, 30]);
+    }
+
+    // Sound — only if the user has interacted (AudioContext policy)
+    try {
+        if (!audioCtx) {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            audioCtx = new Ctx();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        // Different tone per status
+        osc.type = 'sine';
+        osc.frequency.value =
+            status === 'taken'   ? 880 :
+            status === 'skipped' ? 660 : 440;
+
+        const now = audioCtx.currentTime;
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.08, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+        osc.start(now);
+        osc.stop(now + 0.2);
+    } catch (e) {
+        /* silent fail — feedback is a bonus, not critical */
+    }
+}
+
+// ============================================================
+// SWIPE-TO-LOG HANDLERS
+// ============================================================
+function dateSwipeTaken(date, slot) {
+    // Find the first scheduled med in that slot+date
+    const dow = new Date(date + 'T12:00:00').getDay();
+    const candidates = state.medications.filter(m =>
+        m.slot === slot && Array.isArray(m.days) && m.days.includes(dow)
+    );
+    if (candidates.length === 0) return;
+
+    const target = candidates[0];
+    logDose(target.id, date, 'taken');
+}
+
+function dateSwipeMissed(date, slot) {
+    const dow = new Date(date + 'T12:00:00').getDay();
+    const candidates = state.medications.filter(m =>
+        m.slot === slot && Array.isArray(m.days) && m.days.includes(dow)
+    );
+    if (candidates.length === 0) return;
+
+    const target = candidates[0];
+    logDose(target.id, date, 'missed');
+}
+
+// ============================================================
+// REFILL
+// ============================================================
+function refillMedication(medId) {
+    const med = state.medications.find(m => m.id === medId);
+    if (!med) return;
+
+    const max = med.maxInventory || 14;
+    if (med.inventory >= max) {
+        showToast(med.name + ' is already full.', { duration: 2000 });
+        return;
+    }
+
+    const previous = med.inventory;
+    med.inventory = max;
+
+    saveState(state);
+    renderAll();
+
+    showToast(
+        med.name + ' refilled to ' + max + ' doses.',
+        {
+            type: 'success',
+            duration: 6500,
+            action: {
+                label: 'Undo',
+                onClick: () => {
+                    med.inventory = previous;
+                    saveState(state);
+                    renderAll();
+                    showToast('Refill undone.', { type: 'warning', duration: 2000 });
+                }
+            }
+        }
+    );
 }
 
 // ---- Medication form ----
@@ -539,6 +1064,9 @@ function init() {
         setTheme(state.theme || 'light');
         return;
     }
+
+    // First-run flow setup
+    setupFirstRunListeners();
 
     setTheme(state.theme || 'light');
 
@@ -645,6 +1173,15 @@ function init() {
 
     // Export/Import
     elements.exportBtn.addEventListener('click', exportData);
+    document.getElementById('exportIcsBtn')?.addEventListener('click', exportCalendar);
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isStandalone = navigator.standalone === true ||
+        window.matchMedia('(display-mode: standalone)').matches;
+    if (isIOS && !isStandalone) {
+        const hint = document.getElementById('icsHint');
+        if (hint) hint.style.display = 'block';
+    }
     elements.importBtn.addEventListener('click', () => elements.importFileInput.click());
     elements.importFileInput.addEventListener('change', e => {
         if (e.target.files.length) { importData(e.target.files[0]); e.target.value = ''; }
@@ -675,6 +1212,11 @@ function init() {
     checkMidnightReset();
     renderAll();
     startCooldownTimer();
+
+    // Trigger the welcome flow on first visit (after splash fades)
+    if (shouldRunFirstRun()) {
+        setTimeout(openWelcomeModal, 2400);
+    }
 
     setInterval(() => {
         renderAll();

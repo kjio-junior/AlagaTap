@@ -45,8 +45,11 @@ const defaultState = {
     cooldownUntil: null,
     caregiverShareCode: 'share_' + Math.random().toString(36).substring(2, 10),
     notificationsEnabled: false,
+    browserNotificationsEnabled: false,
+    emailRemindersEnabled: false,
     lastResetDate: null,
-    scheduleFrequency: 'daily'
+    scheduleFrequency: 'daily',
+    soundEnabled: true
 };
 
 export function loadState() {
@@ -93,6 +96,16 @@ export function loadState() {
                     l.id = l.id || 'log_' + Math.random().toString(36).substring(2, 10);
                     return l;
                 });
+            }
+            // Migration: split the old single toggle into browser + email flags
+            if (typeof parsed.browserNotificationsEnabled !== 'boolean') {
+                parsed.browserNotificationsEnabled = parsed.notificationsEnabled === true;
+            }
+            if (typeof parsed.emailRemindersEnabled !== 'boolean') {
+                parsed.emailRemindersEnabled = !!localStorage.getItem('notificationEmail');
+            }
+            if (typeof parsed.soundEnabled !== 'boolean') {
+                parsed.soundEnabled = true;
             }
             return Object.assign({}, defaultState, parsed);
         }

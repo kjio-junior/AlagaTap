@@ -7,7 +7,8 @@ import {
     getSlotLabel, getAdherenceStats, getLogsForSummary,
     buildLogIndex, isLogged,
     buildLogStatusMap,
-    DAY_SHORT, DAY_COLORS, SLOT_ORDER, SLOT_LABELS
+    DAY_SHORT, DAY_COLORS, SLOT_ORDER, SLOT_LABELS,
+    getGreeting, getStreak
 } from './utils.js';
 
 // ================= HERO =================
@@ -15,11 +16,112 @@ export function renderHero(state, elements) {
     const { statusText, status } = getStatusText(state);
     const lastDose = getLastDoseTime(state);
 
+    // Greeting
+    if (elements.heroGreeting) {
+        elements.heroGreeting.textContent = getGreeting();
+    }
+
+    // Streak
+    if (elements.heroStreak) {
+        const streak = getStreak(state);
+        if (streak >= 2) {
+            elements.heroStreak.classList.remove('hidden');
+            elements.heroStreak.innerHTML =
+                '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+                    '<path d="M12.75 3.75a.75.75 0 00-1.5 0v.75H7.5A2.25 2.25 0 005.25 6.75v10.5A2.25 2.25 0 007.5 19.5h9a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0016.5 4.5h-3.75v-.75zM9 9.75h6M9 13.5h6M9 17.25h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>' +
+                    '<path d="M12.5 8.25l-1.5 3h2.25l-1.5 3" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+                '</svg>' +
+                streak + ' day streak';
+        } else {
+            elements.heroStreak.classList.add('hidden');
+        }
+    }
+
     elements.statusDot.className = 'status-dot ' + status;
     elements.statusText.textContent = statusText;
     elements.heroTimestamp.textContent = lastDose
         ? 'Last dose: ' + formatDateTime(lastDose)
         : 'No doses recorded yet';
+}
+
+// ================= SWIPE-TO-LOG =================
+// Right swipe = Taken. Left swipe = Missed.
+// Threshold: 55px of horizontal travel.
+const SWIPE_THRESHOLD = 55;
+const SWIPE_MAX_VERTICAL = 40;
+
+function attachSwipeHandlers(cell, date, callbacks) {
+    let startX = 0, startY = 0, currentX = 0, swiping = false, cancelled = false;
+
+    cell.addEventListener('touchstart', e => {
+        if (e.touches.length !== 1) return;
+        const t = e.touches[0];
+        startX = t.clientX;
+        startY = t.clientY;
+        currentX = startX;
+        swiping = false;
+        cancelled = false;
+    }, { passive: true });
+
+    cell.addEventListener('touchmove', e => {
+        if (e.touches.length !== 1) return;
+        const t = e.touches[0];
+        const dx = t.clientX - startX;
+        const dy = t.clientY - startY;
+
+        // If user moves vertically first, cancel — they're scrolling
+        if (!swiping && Math.abs(dy) > SWIPE_MAX_VERTICAL) {
+            cancelled = true;
+            return;
+        }
+
+        if (Math.abs(dx) > 10) {
+            swiping = true;
+            e.preventDefault();
+        }
+
+        if (!swiping || cancelled) return;
+
+        currentX = t.clientX;
+        const clamped = Math.max(-90, Math.min(90, dx));
+        cell.style.transform = 'translateX(' + clamped + 'px)';
+
+        cell.classList.toggle('swiping-right', dx > 0);
+        cell.classList.toggle('swiping-left', dx < 0);
+        cell.classList.toggle('swipe-taken', dx > SWIPE_THRESHOLD);
+        cell.classList.toggle('swipe-missed', dx < -SWIPE_THRESHOLD);
+    }, { passive: false });
+
+    cell.addEventListener('touchend', () => {
+        const dx = currentX - startX;
+
+        cell.style.transform = '';
+        cell.classList.remove(
+            'swiping-left', 'swiping-right',
+            'swipe-taken', 'swipe-missed'
+        );
+
+        if (!swiping || cancelled) return;
+        cell.dataset.swiped = '1';
+
+        if (dx >= SWIPE_THRESHOLD) {
+            if (typeof callbacks.onSwipeTaken === 'function') {
+                callbacks.onSwipeTaken(date, cell.dataset.slot);
+            }
+        } else if (dx <= -SWIPE_THRESHOLD) {
+            if (typeof callbacks.onSwipeMissed === 'function') {
+                callbacks.onSwipeMissed(date, cell.dataset.slot);
+            }
+        }
+    });
+
+    cell.addEventListener('touchcancel', () => {
+        cell.style.transform = '';
+        cell.classList.remove(
+            'swiping-left', 'swiping-right',
+            'swipe-taken', 'swipe-missed'
+        );
+    });
 }
 
 // ================= PILLBOX GRID =================
@@ -61,6 +163,7 @@ export function renderPillboxGrid(state, elements, callbacks) {
             const allLogged = cellMeds.length > 0 && statuses.every(s => s !== null);
             const allTaken  = allLogged && statuses.every(s => s === 'taken');
             const anyMissed = statuses.some(s => s === 'missed');
+            const anySkipped = statuses.some(s => s === 'skipped');
             const isToday   = d === todayDay;
 
             const cellOverdue = isToday && cellMeds.some(m =>
@@ -72,7 +175,8 @@ export function renderPillboxGrid(state, elements, callbacks) {
             if (cellMeds.length > 0) cls += ' has-meds';
             if (isToday) cls += ' is-today';
             if (allTaken) cls += ' is-logged';
-            if (allLogged && anyMissed) cls += ' is-missed';
+            if (allLogged && anyMissed && !allTaken) cls += ' is-missed';
+            if (allLogged && anySkipped && !anyMissed && !allTaken) cls += ' is-skipped';
             if (!allLogged && statuses.some(s => s !== null)) cls += ' is-partial';
             if (cellOverdue) cls += ' is-overdue';
 
@@ -92,6 +196,10 @@ export function renderPillboxGrid(state, elements, callbacks) {
                 inner += '<svg class="pillbox-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">' +
                             '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>' +
                          '</svg>';
+            } else if (allLogged && anySkipped) {
+                inner += '<svg class="pillbox-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' +
+                            '<path d="M13 5l7 7-7 7M5 5l7 7-7 7"/>' +
+                         '</svg>';
             }
 
             html += '<button type="button" class="' + cls + '" style="' + style + '" ' +
@@ -106,13 +214,21 @@ export function renderPillboxGrid(state, elements, callbacks) {
     grid.innerHTML = html;
 
     grid.querySelectorAll('.pillbox-cell').forEach(cell => {
-        cell.addEventListener('click', () => {
-            callbacks.onCellClick(
-                parseInt(cell.dataset.day, 10),
-                cell.dataset.slot,
-                cell.dataset.date
-            );
+        const day = parseInt(cell.dataset.day, 10);
+        const slot = cell.dataset.slot;
+        const date = cell.dataset.date;
+
+        // Tap
+        cell.addEventListener('click', e => {
+            if (cell.dataset.swiped === '1') {
+                cell.dataset.swiped = '0';
+                return;
+            }
+            callbacks.onCellClick(day, slot, date);
         });
+
+        // Swipe
+        attachSwipeHandlers(cell, date, callbacks);
     });
 }
 
@@ -140,9 +256,31 @@ export function renderTodayList(state, elements, callbacks) {
         const out = med.inventory <= 0;
         const dayColor = DAY_COLORS[todayDay];
 
-        const takenBadge  = status === 'taken'  ? '<span class="status-badge taken">Taken</span>' : '';
-        const missedBadge = status === 'missed' ? '<span class="status-badge missed">Missed</span>' : '';
-        const overdueTag  = overdue ? '<span style="color:#FF5252;font-size:12px;margin-left:6px;">(Overdue)</span>' : '';
+        const takenBadge   = status === 'taken'   ? '<span class="status-badge taken">Taken</span>'   : '';
+        const missedBadge  = status === 'missed'  ? '<span class="status-badge missed">Missed</span>' : '';
+        const skippedBadge = status === 'skipped' ? '<span class="status-badge skipped">Skipped</span>' : '';
+        const overdueTag   = overdue ? '<span style="color:#FF5252;font-size:12px;margin-left:6px;">(Overdue)</span>' : '';
+
+        const canRefill = med.inventory < (med.maxInventory || 14);
+        const refillBtn = canRefill
+            ? `<button class="btn-icon refill-btn${low ? ' pulse' : ''}"
+                       data-med-id="${med.id}"
+                       title="Refill to ${med.maxInventory || 14} doses">
+                   <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                       <path d="M4 4v6h6M20 20v-6h-6"/>
+                       <path d="M20 10a8 8 0 00-14.93-4M4 14a8 8 0 0014.93 4"/>
+                   </svg>
+               </button>`
+            : '';
+
+        // Skip button only shows when today's dose is not yet recorded
+        const skipQuickBtn = !status
+            ? `<button class="btn-icon skip-dose-btn" data-med-id="${med.id}" title="Skip today's dose">
+                   <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                       <path d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
+                   </svg>
+               </button>`
+            : '';
 
         return `
             <div class="compartment-card" data-med-id="${med.id}" style="border-left: 4px solid ${dayColor};">
@@ -154,6 +292,7 @@ export function renderTodayList(state, elements, callbacks) {
                         <span class="compartment-name">${med.name}</span>
                         ${overdueTag}
                         ${takenBadge}
+                        ${skippedBadge}
                         ${missedBadge}
                     </div>
                     <div class="compartment-detail">${med.dosage} &middot; ${formatTime(med.time)}</div>
@@ -169,6 +308,8 @@ export function renderTodayList(state, elements, callbacks) {
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                     </button>
+                    ${refillBtn}
+                    ${skipQuickBtn}
                     <button class="btn-icon edit-med-btn" data-med-id="${med.id}" title="Edit">
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/>
@@ -188,6 +329,22 @@ export function renderTodayList(state, elements, callbacks) {
         btn.addEventListener('click', e => {
             e.stopPropagation();
             callbacks.onLogDose(btn.dataset.medId);
+        });
+    });
+    list.querySelectorAll('.refill-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            if (typeof callbacks.onRefill === 'function') {
+                callbacks.onRefill(btn.dataset.medId);
+            }
+        });
+    });
+    list.querySelectorAll('.skip-dose-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            if (typeof callbacks.onSkipDose === 'function') {
+                callbacks.onSkipDose(btn.dataset.medId);
+            }
         });
     });
     list.querySelectorAll('.edit-med-btn').forEach(btn => {
@@ -211,8 +368,8 @@ export function renderDosePickerList(state, elements, targetDate, filterSlot) {
     const list = elements.dosePickerList;
     if (!list) return;
 
-    const dateStr  = targetDate || getTodayStr();
-    const isToday  = dateStr === getTodayStr();
+    const dateStr   = targetDate || getTodayStr();
+    const isToday   = dateStr === getTodayStr();
     const targetDay = new Date(dateStr + 'T12:00:00').getDay();
     const statusMap = buildLogStatusMap(state.logs);
 
@@ -232,32 +389,66 @@ export function renderDosePickerList(state, elements, targetDate, filterSlot) {
         ? '<div class="picker-date-header">Recording for <strong>' +
           formatDateShort(dateStr) + '</strong></div>'
         : '';
+
     const cooldownActive = state.cooldownUntil && Date.now() < state.cooldownUntil;
 
     list.innerHTML = headerHTML + medsForDate.map(med => {
         const status = statusMap.get(med.id + '|' + dateStr) || null;
-        const rowCls = 'picker-row' + (status === 'taken' ? ' is-taken' : '') + (status === 'missed' ? ' is-missed' : '');
-        const takenActive = status === 'taken' ? ' is-active' : '';
-        const missedActive = status === 'missed' ? ' is-active' : '';
+        const rowCls = 'picker-row' +
+            (status === 'taken'   ? ' is-taken'   : '') +
+            (status === 'missed'  ? ' is-missed'  : '') +
+            (status === 'skipped' ? ' is-skipped' : '');
+
+        const takenActive   = status === 'taken'   ? ' is-active' : '';
+        const missedActive  = status === 'missed'  ? ' is-active' : '';
+        const skippedActive = status === 'skipped' ? ' is-active' : '';
+
         const takenDisabled = (cooldownActive && isToday && status !== 'taken') ? ' disabled' : '';
         const slotCls = 'picker-slot slot-' + med.slot;
 
         return `
             <div class="${rowCls}">
-                <div class="picker-main"><div class="picker-time">${formatTime(med.time)}</div><div class="picker-info">
-                    <div class="picker-name"><span class="${slotCls}">${getSlotLabel(med.slot)}</span> ${med.name}</div>
-                    <div class="picker-detail">${med.dosage} · ${med.inventory} left</div>
-                </div></div>
-                <div class="picker-actions">
-                    <button type="button" class="picker-btn taken${takenActive}"${takenDisabled} data-med-id="${med.id}" data-date="${dateStr}" data-status="taken">Taken</button>
-                    <button type="button" class="picker-btn missed${missedActive}" data-med-id="${med.id}" data-date="${dateStr}" data-status="missed">Missed</button>
+                <div class="picker-main">
+                    <div class="picker-time">${formatTime(med.time)}</div>
+                    <div class="picker-info">
+                        <div class="picker-name">
+                            <span class="${slotCls}">${getSlotLabel(med.slot)}</span>
+                            ${med.name}
+                        </div>
+                        <div class="picker-detail">${med.dosage} · ${med.inventory} left</div>
+                    </div>
                 </div>
-            </div>`;
+                <div class="picker-actions">
+                    <button type="button" class="picker-btn taken${takenActive}"${takenDisabled}
+                            data-med-id="${med.id}" data-date="${dateStr}" data-status="taken">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Taken
+                    </button>
+                    <button type="button" class="picker-btn skipped${skippedActive}"
+                            data-med-id="${med.id}" data-date="${dateStr}" data-status="skipped">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
+                        </svg>
+                        Skipped
+                    </button>
+                    <button type="button" class="picker-btn missed${missedActive}"
+                            data-med-id="${med.id}" data-date="${dateStr}" data-status="missed">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                        Missed
+                    </button>
+                </div>
+            </div>
+        `;
     }).join('');
 
     list.querySelectorAll('.picker-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            if (!btn.disabled && typeof elements.onPickerAction === 'function') {
+            if (btn.disabled) return;
+            if (typeof elements.onPickerAction === 'function') {
                 elements.onPickerAction(btn.dataset.medId, btn.dataset.date, btn.dataset.status);
             }
         });
@@ -332,7 +523,9 @@ export function renderHistory(state, elements, isOpen) {
         const status = log.status || 'taken';
         const badge = status === 'missed'
             ? '<span class="status-badge missed">Missed</span>'
-            : '<span class="status-badge taken">Taken</span>';
+            : status === 'skipped'
+                ? '<span class="status-badge skipped">Skipped</span>'
+                : '<span class="status-badge taken">Taken</span>';
 
         return `<div class="history-item">
             <span>
@@ -368,7 +561,9 @@ export function renderSummary(state, elements) {
         const status = log.status || 'taken';
         const badge = status === 'missed'
             ? '<span class="status-badge missed">Missed</span>'
-            : '<span class="status-badge taken">Taken</span>';
+            : status === 'skipped'
+                ? '<span class="status-badge skipped">Skipped</span>'
+                : '<span class="status-badge taken">Taken</span>';
 
         return `<div class="history-item">
             <span>${slot} · ${name} · for ${forDate} ${badge}</span>

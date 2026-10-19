@@ -177,7 +177,9 @@ export function getLogsForSummary(state) {
 
 // ---------- Status helpers ----------
 export function getStatusLabel(status) {
-    return status === 'missed' ? 'Missed' : 'Taken';
+    if (status === 'missed')  return 'Missed';
+    if (status === 'skipped') return 'Skipped';
+    return 'Taken';
 }
 
 // Update buildLogIndex to also expose per-key status
@@ -194,4 +196,61 @@ export function buildLogStatusMap(logs) {
 
 export function getLogStatus(map, medId, date) {
     return map.get(medId + '|' + date) || null; // 'taken' | 'missed' | null
+}
+
+
+// =====================
+// GREETING
+// =====================
+export function getGreeting() {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 18) return 'Good afternoon';
+    return 'Good evening';
+}
+
+// =====================
+// STREAK
+// =====================
+// A day counts toward the streak if:
+//   - At least one medication was scheduled that day
+//   - At least one dose was logged that day
+//   - No dose that day has status 'missed'
+// Today with no logs yet is treated as neutral (doesn't break the streak).
+export function getStreak(state) {
+    let streak = 0;
+    const cursor = new Date();
+    cursor.setHours(12, 0, 0, 0);   // mid-day to avoid DST edge cases
+
+    for (let i = 0; i < 365; i++) {
+        const dateStr = localDateStr(cursor);
+        const dow = cursor.getDay();
+
+        const scheduledMeds = state.medications.filter(m =>
+            Array.isArray(m.days) && m.days.includes(dow)
+        );
+
+        if (scheduledMeds.length === 0) {
+            // Rest day — neutral
+            cursor.setDate(cursor.getDate() - 1);
+            continue;
+        }
+
+        const dayLogs = state.logs.filter(l => l.date === dateStr);
+        const hasMissed = dayLogs.some(l => l.status === 'missed');
+
+        // Today with no logs yet — still in progress
+        if (i === 0 && dayLogs.length === 0) {
+            cursor.setDate(cursor.getDate() - 1);
+            continue;
+        }
+
+        if (hasMissed) break;
+        if (dayLogs.length === 0) break;   // didn't use the app that day
+
+        streak++;
+        cursor.setDate(cursor.getDate() - 1);
+    }
+
+    return streak;
 }

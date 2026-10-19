@@ -2021,3 +2021,1975 @@ h1, h2, h3, h4 {
 .picker-date-header strong {
     font-weight: 700;
 }
+
+
+/* ============================================================
+   WELCOME MODAL
+   ============================================================ */
+.welcome-overlay {
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(6px);
+}
+
+.welcome-content {
+    max-width: 440px;
+    padding: 28px 22px 22px;
+    text-align: center;
+}
+
+.welcome-screen { animation: welcomeFade 0.3s ease; }
+.welcome-screen.hidden { display: none; }
+
+@keyframes welcomeFade {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.welcome-icon-wrap {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0052CC, #00A3FF);
+    color: #fff;
+    box-shadow: 0 10px 30px rgba(0, 82, 204, 0.35);
+}
+.welcome-icon-wrap.tour-icon {
+    background: linear-gradient(135deg, #00E5A3, #00B88A);
+    box-shadow: 0 10px 30px rgba(0, 184, 138, 0.35);
+}
+.welcome-icon-wrap svg { width: 36px; height: 36px; }
+
+.welcome-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 6px;
+    letter-spacing: -0.02em;
+}
+
+.welcome-subtitle {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0 0 22px;
+    line-height: 1.5;
+}
+
+/* Role grid */
+.role-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.role-btn {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1.5px solid var(--border-color, #e2e8f0);
+    border-radius: 14px;
+    background: var(--bg-primary, #fff);
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    min-height: 64px;
+    transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.role-btn:hover {
+    border-color: #0052CC;
+    background: rgba(0, 82, 204, 0.04);
+    transform: translateY(-1px);
+}
+
+.role-btn:active {
+    transform: translateY(0) scale(0.99);
+}
+
+.role-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(0, 82, 204, 0.1);
+    color: #0052CC;
+}
+[data-theme="dark"] .role-icon {
+    background: rgba(96, 165, 250, 0.15);
+    color: #60a5fa;
+}
+.role-icon svg { width: 22px; height: 22px; }
+
+.role-text { flex: 1; min-width: 0; }
+.role-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+.role-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.welcome-skip {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    width: 100%;
+}
+.welcome-skip:hover { color: var(--text-secondary); }
+
+/* Tour preview list */
+.tour-preview {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 24px;
+    text-align: left;
+}
+.tour-preview li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+.tour-preview-num {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(0, 82, 204, 0.1);
+    color: #0052CC;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+[data-theme="dark"] .tour-preview-num {
+    background: rgba(96, 165, 250, 0.18);
+    color: #93c5fd;
+}
+
+.welcome-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 8px;
+}
+.welcome-actions button { min-height: 48px; }
+
+/* ============================================================
+   TUTORIAL SLIDESHOW
+   ============================================================ */
+.tutorial-content {
+    max-width: 420px;
+    padding: 32px 24px 22px;
+    position: relative;
+    text-align: center;
+}
+
+.tutorial-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.tutorial-close:hover { background: var(--bg-secondary); }
+.tutorial-close svg { width: 18px; height: 18px; }
+
+.tutorial-slide { animation: welcomeFade 0.35s ease; }
+.tutorial-slide.hidden { display: none; }
+
+.tutorial-visual {
+    min-height: 160px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 22px;
+    padding: 16px;
+    background: var(--bg-secondary, #f8fafc);
+    border-radius: 16px;
+    gap: 12px;
+}
+[data-theme="dark"] .tutorial-visual {
+    background: rgba(30, 41, 59, 0.6);
+}
+
+.tutorial-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+}
+
+.tutorial-body {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    margin: 0;
+    min-height: 88px;
+}
+
+.tutorial-progress {
+    display: flex;
+    justify-content: center;
+    gap: 7px;
+    margin: 22px 0 16px;
+}
+.progress-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--border-color, #e2e8f0);
+    transition: all 0.25s ease;
+}
+.progress-dot.active {
+    background: #0052CC;
+    width: 20px;
+    border-radius: 4px;
+}
+
+.tutorial-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.tutorial-actions button { min-height: 48px; }
+
+/* ---- Mock UI previews ---- */
+.mock-pillbox {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px;
+    background: var(--bg-primary, #fff);
+    border-radius: 10px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    width: 100%;
+    max-width: 260px;
+}
+.mock-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+}
+.mock-row.mock-header span {
+    height: 6px;
+    border-radius: 3px;
+}
+.mock-row span {
+    aspect-ratio: 1;
+    border-radius: 4px;
+    background: #e2e8f0;
+    border: 1px solid #cbd5e1;
+}
+.mock-row span.on {
+    background: rgba(0, 82, 204, 0.15);
+    border-color: #0052CC;
+}
+
+.mock-btn-row {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+.mock-add-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 18px;
+    background: #0052CC;
+    color: #fff;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(0, 82, 204, 0.3);
+}
+
+.mock-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    max-width: 240px;
+}
+.mock-field {
+    height: 12px;
+    border-radius: 6px;
+    background: #e2e8f0;
+    border: 1px solid #cbd5e1;
+}
+.mock-field.short { width: 65%; }
+
+.mock-hero-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #0052CC, #00A3FF);
+    color: #fff;
+    border-radius: 24px;
+    font-size: 14px;
+    font-weight: 700;
+    box-shadow: 0 6px 20px rgba(0, 82, 204, 0.35);
+}
+
+.mock-picker-row {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    max-width: 240px;
+}
+.mock-pill-taken,
+.mock-pill-missed {
+    flex: 1;
+    padding: 10px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+}
+.mock-pill-taken {
+    background: rgba(0, 184, 138, 0.15);
+    color: #00B88A;
+    border: 1.5px solid #00B88A;
+}
+.mock-pill-missed {
+    background: rgba(255, 82, 82, 0.12);
+    color: #FF5252;
+    border: 1.5px solid #FF5252;
+}
+
+.mock-icon-cluster {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.mock-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0052CC, #00A3FF);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 16px rgba(0, 82, 204, 0.3);
+}
+.mock-avatar svg { width: 26px; height: 26px; }
+.mock-link-line {
+    width: 40px;
+    height: 2px;
+    background: repeating-linear-gradient(90deg, #94a3b8 0, #94a3b8 5px, transparent 5px, transparent 10px);
+    border-radius: 2px;
+}
+
+.tutorial-success-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #00E5A3, #00B88A);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 30px rgba(0, 184, 138, 0.4);
+    animation: successPop 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tutorial-success-icon svg { width: 36px; height: 36px; }
+
+@keyframes successPop {
+    0%   { transform: scale(0.5); opacity: 0; }
+    60%  { transform: scale(1.1); }
+    100% { transform: scale(1);   opacity: 1; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .welcome-screen,
+    .tutorial-slide,
+    .tutorial-success-icon {
+        animation: none !important;
+    }
+    .progress-dot { transition: none; }
+}
+
+
+/* ============================================================
+   WELCOME MODAL
+   ============================================================ */
+.welcome-overlay {
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(6px);
+}
+
+.welcome-content {
+    max-width: 440px;
+    padding: 28px 22px 22px;
+    text-align: center;
+}
+
+.welcome-screen { animation: welcomeFade 0.3s ease; }
+.welcome-screen.hidden { display: none; }
+
+@keyframes welcomeFade {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.welcome-icon-wrap {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0052CC, #00A3FF);
+    color: #fff;
+    box-shadow: 0 10px 30px rgba(0, 82, 204, 0.35);
+}
+.welcome-icon-wrap.tour-icon {
+    background: linear-gradient(135deg, #00E5A3, #00B88A);
+    box-shadow: 0 10px 30px rgba(0, 184, 138, 0.35);
+}
+.welcome-icon-wrap svg { width: 36px; height: 36px; }
+
+.welcome-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 6px;
+    letter-spacing: -0.02em;
+}
+
+.welcome-subtitle {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0 0 22px;
+    line-height: 1.5;
+}
+
+/* Role grid */
+.role-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.role-btn {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1.5px solid var(--border-color, #e2e8f0);
+    border-radius: 14px;
+    background: var(--bg-primary, #fff);
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    min-height: 64px;
+    transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.role-btn:hover {
+    border-color: #0052CC;
+    background: rgba(0, 82, 204, 0.04);
+    transform: translateY(-1px);
+}
+
+.role-btn:active {
+    transform: translateY(0) scale(0.99);
+}
+
+.role-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(0, 82, 204, 0.1);
+    color: #0052CC;
+}
+[data-theme="dark"] .role-icon {
+    background: rgba(96, 165, 250, 0.15);
+    color: #60a5fa;
+}
+.role-icon svg { width: 22px; height: 22px; }
+
+.role-text { flex: 1; min-width: 0; }
+.role-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+.role-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.welcome-skip {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    width: 100%;
+}
+.welcome-skip:hover { color: var(--text-secondary); }
+
+/* Tour preview list */
+.tour-preview {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 24px;
+    text-align: left;
+}
+.tour-preview li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+.tour-preview-num {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(0, 82, 204, 0.1);
+    color: #0052CC;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+[data-theme="dark"] .tour-preview-num {
+    background: rgba(96, 165, 250, 0.18);
+    color: #93c5fd;
+}
+
+.welcome-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 8px;
+}
+.welcome-actions button { min-height: 48px; }
+
+/* ============================================================
+   TUTORIAL SLIDESHOW
+   ============================================================ */
+.tutorial-content {
+    max-width: 420px;
+    padding: 32px 24px 22px;
+    position: relative;
+    text-align: center;
+}
+
+.tutorial-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.tutorial-close:hover { background: var(--bg-secondary); }
+.tutorial-close svg { width: 18px; height: 18px; }
+
+.tutorial-slide { animation: welcomeFade 0.35s ease; }
+.tutorial-slide.hidden { display: none; }
+
+.tutorial-visual {
+    min-height: 160px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 22px;
+    padding: 16px;
+    background: var(--bg-secondary, #f8fafc);
+    border-radius: 16px;
+    gap: 12px;
+}
+[data-theme="dark"] .tutorial-visual {
+    background: rgba(30, 41, 59, 0.6);
+}
+
+.tutorial-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+}
+
+.tutorial-body {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    margin: 0;
+    min-height: 88px;
+}
+
+.tutorial-progress {
+    display: flex;
+    justify-content: center;
+    gap: 7px;
+    margin: 22px 0 16px;
+}
+.progress-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--border-color, #e2e8f0);
+    transition: all 0.25s ease;
+}
+.progress-dot.active {
+    background: #0052CC;
+    width: 20px;
+    border-radius: 4px;
+}
+
+.tutorial-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.tutorial-actions button { min-height: 48px; }
+
+/* ---- Mock UI previews ---- */
+.mock-pillbox {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px;
+    background: var(--bg-primary, #fff);
+    border-radius: 10px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    width: 100%;
+    max-width: 260px;
+}
+.mock-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+}
+.mock-row.mock-header span {
+    height: 6px;
+    border-radius: 3px;
+}
+.mock-row span {
+    aspect-ratio: 1;
+    border-radius: 4px;
+    background: #e2e8f0;
+    border: 1px solid #cbd5e1;
+}
+.mock-row span.on {
+    background: rgba(0, 82, 204, 0.15);
+    border-color: #0052CC;
+}
+
+.mock-btn-row {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+.mock-add-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 18px;
+    background: #0052CC;
+    color: #fff;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(0, 82, 204, 0.3);
+}
+
+.mock-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    max-width: 240px;
+}
+.mock-field {
+    height: 12px;
+    border-radius: 6px;
+    background: #e2e8f0;
+    border: 1px solid #cbd5e1;
+}
+.mock-field.short { width: 65%; }
+
+.mock-hero-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #0052CC, #00A3FF);
+    color: #fff;
+    border-radius: 24px;
+    font-size: 14px;
+    font-weight: 700;
+    box-shadow: 0 6px 20px rgba(0, 82, 204, 0.35);
+}
+
+.mock-picker-row {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    max-width: 240px;
+}
+.mock-pill-taken,
+.mock-pill-missed {
+    flex: 1;
+    padding: 10px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+}
+.mock-pill-taken {
+    background: rgba(0, 184, 138, 0.15);
+    color: #00B88A;
+    border: 1.5px solid #00B88A;
+}
+.mock-pill-missed {
+    background: rgba(255, 82, 82, 0.12);
+    color: #FF5252;
+    border: 1.5px solid #FF5252;
+}
+
+.mock-icon-cluster {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.mock-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0052CC, #00A3FF);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 16px rgba(0, 82, 204, 0.3);
+}
+.mock-avatar svg { width: 26px; height: 26px; }
+.mock-link-line {
+    width: 40px;
+    height: 2px;
+    background: repeating-linear-gradient(90deg, #94a3b8 0, #94a3b8 5px, transparent 5px, transparent 10px);
+    border-radius: 2px;
+}
+
+.tutorial-success-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #00E5A3, #00B88A);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 30px rgba(0, 184, 138, 0.4);
+    animation: successPop 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tutorial-success-icon svg { width: 36px; height: 36px; }
+
+@keyframes successPop {
+    0%   { transform: scale(0.5); opacity: 0; }
+    60%  { transform: scale(1.1); }
+    100% { transform: scale(1);   opacity: 1; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .welcome-screen,
+    .tutorial-slide,
+    .tutorial-success-icon {
+        animation: none !important;
+    }
+    .progress-dot { transition: none; }
+}
+
+/* ============================================================
+   SKIPPED STATUS
+   ============================================================ */
+
+/* Badge */
+.status-badge.skipped {
+    background: rgba(255, 184, 0, 0.18);
+    color: #B45309;
+}
+[data-theme="dark"] .status-badge.skipped {
+    background: rgba(255, 184, 0, 0.22);
+    color: #FCD34D;
+}
+
+/* Picker row tint */
+.picker-row.is-skipped {
+    border-color: rgba(255, 184, 0, 0.5);
+    background: rgba(255, 184, 0, 0.06);
+}
+
+/* Picker three-button grid */
+.picker-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+}
+
+/* Skipped picker button */
+.picker-btn.skipped {
+    border-color: rgba(255, 184, 0, 0.4);
+    color: #B45309;
+}
+.picker-btn.skipped.is-active {
+    background: #FFB800;
+    border-color: #FFB800;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(255, 184, 0, 0.35);
+}
+
+/* Compress picker buttons slightly for 3-up on mobile */
+.picker-btn {
+    padding: 0 6px;
+    font-size: 12px;
+    letter-spacing: 0.1px;
+}
+.picker-btn svg { width: 14px; height: 14px; }
+
+/* Quick-skip icon tint on the card */
+.skip-dose-btn { color: #FFB800; }
+.skip-dose-btn:hover {
+    background: rgba(255, 184, 0, 0.14);
+}
+
+/* Pillbox cell — skipped-only state */
+.pillbox-cell.is-skipped {
+    background: rgba(255, 184, 0, 0.14) !important;
+    border-color: #FFB800 !important;
+    color: #B45309 !important;
+}
+.pillbox-cell.is-skipped .pillbox-check { color: #FFB800; }
+.pillbox-cell.is-skipped .pillbox-check { color: #FFB800; }
+
+/* ============================================================
+   iOS INSTALL HINT
+   ============================================================ */
+.ios-install-hint {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    max-width: 430px;
+    margin: 0 auto;
+    z-index: 9998;
+    background: rgba(0, 82, 204, 0.96);
+    color: #fff;
+    border-radius: 14px;
+    padding: 14px 16px;
+    box-shadow: 0 10px 30px rgba(0, 82, 204, 0.35);
+    animation: slideDown 0.35s ease;
+}
+.ios-install-hint.hidden { display: none; }
+
+.ios-hint-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+.ios-hint-icon { font-size: 22px; flex-shrink: 0; line-height: 1; }
+.ios-hint-text { flex: 1; min-width: 0; }
+.ios-hint-text strong { display: block; font-size: 14px; margin-bottom: 3px; }
+.ios-hint-text p {
+    font-size: 12.5px;
+    line-height: 1.45;
+    margin: 0;
+    opacity: 0.92;
+}
+.ios-hint-dismiss {
+    flex-shrink: 0;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.18);
+    border: none;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   ALERT MODAL (full-screen reminder)
+   ============================================================ */
+.alert-content {
+    max-width: 400px;
+    padding: 32px 24px 24px;
+    text-align: center;
+}
+.alert-icon-wrap {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(255, 184, 0, 0.15);
+    color: #FFB800;
+    animation: bellShake 0.6s ease;
+}
+.alert-icon-wrap svg { width: 36px; height: 36px; }
+
+@keyframes bellShake {
+    0%, 100% { transform: rotate(0deg); }
+    20%, 60% { transform: rotate(-10deg); }
+    40%, 80% { transform: rotate(10deg); }
+}
+
+.alert-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 8px;
+}
+.alert-med {
+    font-size: 24px;
+    font-weight: 700;
+    color: #0052CC;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+}
+.alert-detail {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0 0 22px;
+}
+.alert-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.alert-btn { min-height: 56px; font-size: 16px; font-weight: 700; }
+.alert-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 10px;
+    width: 100%;
+    min-height: 44px;
+}
+.alert-close:hover { color: var(--text-secondary); }
+
+/* ============================================================
+   ICS EXPORT HINT
+   ============================================================ */
+.ics-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.45;
+    text-align: center;
+    margin: 10px 0 0;
+    padding: 0 8px;
+}
+
+/* ============================================================
+   DARK-MODE FIXES FOR SKIPPED / PICKER BUTTONS
+   ============================================================ */
+
+/* Base picker buttons in dark mode get a real border instead of transparent */
+[data-theme="dark"] .picker-btn {
+    background: #0f172a;
+    border-color: #334155;
+    color: #cbd5e1;
+}
+
+/* Taken — brighter mint on dark */
+[data-theme="dark"] .picker-btn.taken {
+    border-color: rgba(0, 229, 163, 0.55);
+    color: #4ade80;
+    background: rgba(0, 229, 163, 0.08);
+}
+[data-theme="dark"] .picker-btn.taken.is-active {
+    background: #00b88a;
+    border-color: #00b88a;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 229, 163, 0.35);
+}
+
+/* Skipped — strong amber on dark */
+[data-theme="dark"] .picker-btn.skipped {
+    border-color: rgba(255, 184, 0, 0.7);
+    color: #fbbf24;
+    background: rgba(255, 184, 0, 0.1);
+}
+[data-theme="dark"] .picker-btn.skipped.is-active {
+    background: #f59e0b;
+    border-color: #f59e0b;
+    color: #1a1205;
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45);
+}
+
+/* Missed — brighter coral on dark */
+[data-theme="dark"] .picker-btn.missed {
+    border-color: rgba(255, 82, 82, 0.6);
+    color: #f87171;
+    background: rgba(255, 82, 82, 0.1);
+}
+[data-theme="dark"] .picker-btn.missed.is-active {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+}
+
+/* Hover on dark */
+[data-theme="dark"] .picker-btn:hover:not(:disabled) {
+    border-color: currentColor;
+}
+
+/* Quick-skip icon on the Today's Doses card — dark mode */
+[data-theme="dark"] .skip-dose-btn {
+    color: #fbbf24;
+}
+[data-theme="dark"] .skip-dose-btn:hover {
+    background: rgba(255, 184, 0, 0.2);
+}
+
+/* Skipped badge on dark — brighten */
+[data-theme="dark"] .status-badge.skipped {
+    background: rgba(255, 184, 0, 0.25);
+    color: #fcd34d;
+    border: 1px solid rgba(255, 184, 0, 0.4);
+}
+
+/* Pillbox cell skipped on dark */
+[data-theme="dark"] .pillbox-cell.is-skipped {
+    background: rgba(255, 184, 0, 0.18) !important;
+    border-color: #fbbf24 !important;
+    color: #fbbf24 !important;
+}
+[data-theme="dark"] .pillbox-cell.is-skipped .pillbox-check {
+    color: #fbbf24;
+}
+
+/* Picker row tint on dark */
+[data-theme="dark"] .picker-row.is-skipped {
+    border-color: rgba(255, 184, 0, 0.5);
+    background: rgba(255, 184, 0, 0.07);
+}
+[data-theme="dark"] .picker-row.is-taken {
+    border-color: rgba(0, 229, 163, 0.4);
+    background: rgba(0, 229, 163, 0.06);
+}
+[data-theme="dark"] .picker-row.is-missed {
+    border-color: rgba(255, 82, 82, 0.4);
+    background: rgba(255, 82, 82, 0.06);
+}
+
+/* ============================================================
+   SKIPPED STATUS
+   ============================================================ */
+
+/* Badge */
+.status-badge.skipped {
+    background: rgba(255, 184, 0, 0.18);
+    color: #B45309;
+}
+[data-theme="dark"] .status-badge.skipped {
+    background: rgba(255, 184, 0, 0.22);
+    color: #FCD34D;
+}
+
+/* Picker row tint */
+.picker-row.is-skipped {
+    border-color: rgba(255, 184, 0, 0.5);
+    background: rgba(255, 184, 0, 0.06);
+}
+
+/* Picker three-button grid */
+.picker-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+}
+
+/* Skipped picker button */
+.picker-btn.skipped {
+    border-color: rgba(255, 184, 0, 0.4);
+    color: #B45309;
+}
+.picker-btn.skipped.is-active {
+    background: #FFB800;
+    border-color: #FFB800;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(255, 184, 0, 0.35);
+}
+
+/* Compress picker buttons slightly for 3-up on mobile */
+.picker-btn {
+    padding: 0 6px;
+    font-size: 12px;
+    letter-spacing: 0.1px;
+}
+.picker-btn svg { width: 14px; height: 14px; }
+
+/* Quick-skip icon tint on the card */
+.skip-dose-btn { color: #FFB800; }
+.skip-dose-btn:hover {
+    background: rgba(255, 184, 0, 0.14);
+}
+
+/* Pillbox cell — skipped-only state */
+.pillbox-cell.is-skipped {
+    background: rgba(255, 184, 0, 0.14) !important;
+    border-color: #FFB800 !important;
+    color: #B45309 !important;
+}
+.pillbox-cell.is-skipped .pillbox-check { color: #FFB800; }
+
+/* ============================================================
+   DARK-MODE FIXES FOR SKIPPED / PICKER BUTTONS
+   ============================================================ */
+
+/* Base picker buttons in dark mode get a real border instead of transparent */
+[data-theme="dark"] .picker-btn {
+    background: #0f172a;
+    border-color: #334155;
+    color: #cbd5e1;
+}
+
+/* Taken — brighter mint on dark */
+[data-theme="dark"] .picker-btn.taken {
+    border-color: rgba(0, 229, 163, 0.55);
+    color: #4ade80;
+    background: rgba(0, 229, 163, 0.08);
+}
+[data-theme="dark"] .picker-btn.taken.is-active {
+    background: #00b88a;
+    border-color: #00b88a;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 229, 163, 0.35);
+}
+
+/* Skipped — strong amber on dark */
+[data-theme="dark"] .picker-btn.skipped {
+    border-color: rgba(255, 184, 0, 0.7);
+    color: #fbbf24;
+    background: rgba(255, 184, 0, 0.1);
+}
+[data-theme="dark"] .picker-btn.skipped.is-active {
+    background: #f59e0b;
+    border-color: #f59e0b;
+    color: #1a1205;
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45);
+}
+
+/* Missed — brighter coral on dark */
+[data-theme="dark"] .picker-btn.missed {
+    border-color: rgba(255, 82, 82, 0.6);
+    color: #f87171;
+    background: rgba(255, 82, 82, 0.1);
+}
+[data-theme="dark"] .picker-btn.missed.is-active {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+}
+
+/* Hover on dark */
+[data-theme="dark"] .picker-btn:hover:not(:disabled) {
+    border-color: currentColor;
+}
+
+/* Quick-skip icon on the Today's Doses card — dark mode */
+[data-theme="dark"] .skip-dose-btn {
+    color: #fbbf24;
+}
+[data-theme="dark"] .skip-dose-btn:hover {
+    background: rgba(255, 184, 0, 0.2);
+}
+
+/* Skipped badge on dark — brighten */
+[data-theme="dark"] .status-badge.skipped {
+    background: rgba(255, 184, 0, 0.25);
+    color: #fcd34d;
+    border: 1px solid rgba(255, 184, 0, 0.4);
+}
+
+/* Pillbox cell skipped on dark */
+[data-theme="dark"] .pillbox-cell.is-skipped {
+    background: rgba(255, 184, 0, 0.18) !important;
+    border-color: #fbbf24 !important;
+    color: #fbbf24 !important;
+}
+[data-theme="dark"] .pillbox-cell.is-skipped .pillbox-check {
+    color: #fbbf24;
+}
+
+/* Picker row tint on dark */
+[data-theme="dark"] .picker-row.is-skipped {
+    border-color: rgba(255, 184, 0, 0.5);
+    background: rgba(255, 184, 0, 0.07);
+}
+[data-theme="dark"] .picker-row.is-taken {
+    border-color: rgba(0, 229, 163, 0.4);
+    background: rgba(0, 229, 163, 0.06);
+}
+[data-theme="dark"] .picker-row.is-missed {
+    border-color: rgba(255, 82, 82, 0.4);
+    background: rgba(255, 82, 82, 0.06);
+}
+
+
+/* ============================================================
+   HERO — greeting + streak
+   ============================================================ */
+.hero-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.hero-greeting {
+    font-size: 14px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.85);
+    letter-spacing: 0.1px;
+}
+
+.hero-streak {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.18);
+    padding: 4px 12px;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.3px;
+    backdrop-filter: blur(4px);
+}
+.hero-streak svg { width: 14px; height: 14px; }
+.hero-streak.hidden { display: none; }
+
+/* ============================================================
+   TOAST CONTAINER (stackable + undo action)
+   ============================================================ */
+.toast-container {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 420px;
+    width: calc(100% - 32px);
+    pointer-events: none;
+}
+
+.toast-notification {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #1e293b;
+    color: #fff;
+    border-radius: 14px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    font-size: 14px;
+    font-weight: 500;
+    animation: toastSlide 0.3s ease;
+    pointer-events: auto;
+    max-width: 100%;
+}
+[data-theme="dark"] .toast-notification {
+    background: #334155;
+}
+
+.toast-notification .toast-msg {
+    flex: 1;
+    min-width: 0;
+    line-height: 1.35;
+    word-break: break-word;
+}
+
+.toast-notification.success { background: #00b88a; }
+.toast-notification.error   { background: #ef4444; }
+.toast-notification.warning { background: #f59e0b; color: #1a1205; }
+
+.toast-action {
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    border: none;
+    padding: 6px 14px;
+    min-height: 34px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: 0.2px;
+    transition: background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.toast-action:hover { background: rgba(255, 255, 255, 0.3); }
+.toast-action:active { transform: scale(0.97); }
+
+@keyframes toastSlide {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   SWIPE-TO-LOG FEEDBACK ON PILLBOX CELL
+   ============================================================ */
+.pillbox-cell {
+    touch-action: pan-y;             /* allow vertical scroll, capture horizontal */
+    will-change: transform;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.pillbox-cell.swiping-left,
+.pillbox-cell.swiping-right {
+    /* transform is set inline by JS */
+    z-index: 2;
+}
+
+.pillbox-cell.swipe-taken {
+    background: rgba(0, 229, 163, 0.4) !important;
+    border-color: #00b88a !important;
+    color: #00b88a !important;
+}
+.pillbox-cell.swipe-missed {
+    background: rgba(255, 82, 82, 0.35) !important;
+    border-color: #ff5252 !important;
+    color: #ff5252 !important;
+}
+[data-theme="dark"] .pillbox-cell.swipe-taken {
+    background: rgba(0, 229, 163, 0.3) !important;
+    color: #4ade80 !important;
+}
+[data-theme="dark"] .pillbox-cell.swipe-missed {
+    background: rgba(255, 82, 82, 0.3) !important;
+    color: #f87171 !important;
+}
+
+/* ============================================================
+   REFILL BUTTON ON TODAY'S DOSES CARD
+   ============================================================ */
+.refill-btn {
+    color: #0052CC;
+}
+.refill-btn:hover {
+    background: rgba(0, 82, 204, 0.12);
+}
+[data-theme="dark"] .refill-btn {
+    color: #60a5fa;
+}
+[data-theme="dark"] .refill-btn:hover {
+    background: rgba(96, 165, 250, 0.15);
+}
+
+/* Slight pulse when inventory is low, to draw the eye */
+.refill-btn.pulse {
+    animation: refillPulse 2s ease-in-out infinite;
+}
+@keyframes refillPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0, 82, 204, 0); }
+    50%      { box-shadow: 0 0 0 6px rgba(0, 82, 204, 0.15); }
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+    .toast-notification,
+    .refill-btn.pulse {
+        animation: none !important;
+    }
+    .pillbox-cell { transition: none; }
+}
+
+/* ============================================================
+   TUTORIAL — new slide mocks
+   ============================================================ */
+.mock-pill-skipped {
+    flex: 1;
+    padding: 10px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    background: rgba(255, 184, 0, 0.15);
+    color: #B45309;
+    border: 1.5px solid #FFB800;
+}
+[data-theme="dark"] .mock-pill-skipped {
+    color: #FCD34D;
+    background: rgba(255, 184, 0, 0.18);
+}
+
+/* Swipe demo */
+.mock-swipe-demo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 280px;
+    justify-content: center;
+}
+.mock-swipe-cell {
+    width: 44px;
+    height: 48px;
+    border-radius: 8px;
+    background: rgba(0, 82, 204, 0.15);
+    border: 2px solid #0052CC;
+    flex-shrink: 0;
+    animation: swipeHint 2.5s ease-in-out infinite;
+}
+@keyframes swipeHint {
+    0%, 100% { transform: translateX(0); }
+    25%      { transform: translateX(-14px); }
+    75%      { transform: translateX(14px); }
+}
+.mock-swipe-hint {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+.mock-swipe-hint.left  { color: #FF5252; }
+.mock-swipe-hint.right { color: #00B88A; }
+
+/* Reminder toggles demo */
+.mock-reminders {
+    width: 100%;
+    max-width: 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.mock-reminder-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.mock-toggle {
+    width: 32px;
+    height: 18px;
+    border-radius: 9px;
+    background: #0052CC;
+    position: relative;
+    flex-shrink: 0;
+}
+.mock-toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+}
+[data-theme="dark"] .mock-reminder-row {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+/* ============================================================
+   HELP MENU
+   ============================================================ */
+.help-menu-content { padding: 24px 20px 20px; }
+
+.help-option {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    border: 1.5px solid var(--border-color, #e2e8f0);
+    border-radius: 14px;
+    background: var(--bg-primary, #fff);
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    width: 100%;
+    min-height: 72px;
+    margin-bottom: 10px;
+    transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.help-option:last-child { margin-bottom: 0; }
+.help-option:hover {
+    border-color: #0052CC;
+    background: rgba(0, 82, 204, 0.04);
+    transform: translateY(-1px);
+}
+.help-option:active {
+    transform: translateY(0) scale(0.99);
+}
+
+.help-option-icon {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: rgba(0, 82, 204, 0.1);
+    color: #0052CC;
+}
+.help-option-icon svg { width: 22px; height: 22px; }
+[data-theme="dark"] .help-option-icon {
+    background: rgba(96, 165, 250, 0.15);
+    color: #60a5fa;
+}
+
+.help-option-text { flex: 1; min-width: 0; }
+.help-option-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+.help-option-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 3px;
+}
+
+/* ============================================================
+   FEATURE GUIDE
+   ============================================================ */
+.feature-guide-content {
+    max-width: 520px;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    padding: 24px 0 0;
+}
+.feature-guide-content .modal-header { padding: 0 24px; }
+
+.feature-guide-body {
+    overflow-y: auto;
+    padding: 0 24px 24px;
+    margin-top: 8px;
+}
+
+.feature-section {
+    margin-bottom: 24px;
+}
+.feature-section:last-child { margin-bottom: 8px; }
+
+.feature-section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 10px;
+}
+.feature-section-icon {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.feature-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.feature-section li {
+    position: relative;
+    padding: 7px 0 7px 20px;
+    font-size: 13.5px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+.feature-section li:last-child { border-bottom: none; }
+.feature-section li::before {
+    content: '•';
+    position: absolute;
+    left: 6px;
+    top: 7px;
+    color: #0052CC;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1.2;
+}
+.feature-section li strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+[data-theme="dark"] .feature-section li {
+    border-bottom-color: #334155;
+}
+[data-theme="dark"] .feature-section li::before {
+    color: #60a5fa;
+}
+
+/* ============================================================
+   THREE-BLOCK NOTIFICATION SECTION
+   ============================================================ */
+.notification-section {
+    margin-bottom: 20px;
+}
+
+.notification-block {
+    background: var(--bg-secondary, #f8fafc);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+}
+
+.notification-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.notification-labels {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.notification-labels .toggle-text {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.notification-labels .toggle-sublabel {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+
+/* Inline email input */
+.email-inline {
+    margin-top: 12px;
+    animation: emailReveal 0.25s ease;
+}
+.email-inline.hidden { display: none; }
+
+@keyframes emailReveal {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.email-inline-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.email-inline-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 14px;
+    border: 1.5px solid var(--border-color, #e2e8f0);
+    border-radius: 10px;
+    font-size: 15px;
+    font-family: inherit;
+    background: var(--bg-primary, #fff);
+    color: var(--text-primary);
+    min-height: 48px;
+}
+
+.email-inline-row input:focus {
+    outline: none;
+    border-color: #0052CC;
+}
+
+.email-inline-row button {
+    flex-shrink: 0;
+    min-height: 48px;
+    padding: 0 18px;
+    white-space: nowrap;
+}
+
+.email-inline-status {
+    font-size: 13px;
+    margin-top: 8px;
+    line-height: 1.4;
+    min-height: 1em;
+}
+
+/* Dark mode tweaks */
+[data-theme="dark"] .notification-block {
+    background: #0f172a;
+    border-color: #334155;
+}
+[data-theme="dark"] .email-inline-row input {
+    background: #1e293b;
+    border-color: #475569;
+}
+
+/* ============================================================
+   HERO — greeting + streak
+   ============================================================ */
+.hero-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.hero-greeting {
+    font-size: 14px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.85);
+    letter-spacing: 0.1px;
+}
+
+.hero-streak {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.18);
+    padding: 4px 12px;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.3px;
+    backdrop-filter: blur(4px);
+}
+.hero-streak svg { width: 14px; height: 14px; }
+.hero-streak.hidden { display: none; }
+
+/* ============================================================
+   TOAST CONTAINER (stackable + undo action)
+   ============================================================ */
+.toast-container {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 420px;
+    width: calc(100% - 32px);
+    pointer-events: none;
+}
+
+.toast-notification {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #1e293b;
+    color: #fff;
+    border-radius: 14px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    font-size: 14px;
+    font-weight: 500;
+    animation: toastSlide 0.3s ease;
+    pointer-events: auto;
+    max-width: 100%;
+}
+[data-theme="dark"] .toast-notification {
+    background: #334155;
+}
+
+.toast-notification .toast-msg {
+    flex: 1;
+    min-width: 0;
+    line-height: 1.35;
+    word-break: break-word;
+}
+
+.toast-notification.success { background: #00b88a; }
+.toast-notification.error   { background: #ef4444; }
+.toast-notification.warning { background: #f59e0b; color: #1a1205; }
+
+.toast-action {
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    border: none;
+    padding: 6px 14px;
+    min-height: 34px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: 0.2px;
+    transition: background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.toast-action:hover { background: rgba(255, 255, 255, 0.3); }
+.toast-action:active { transform: scale(0.97); }
+
+@keyframes toastSlide {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   SWIPE-TO-LOG FEEDBACK ON PILLBOX CELL
+   ============================================================ */
+.pillbox-cell {
+    touch-action: pan-y;             /* allow vertical scroll, capture horizontal */
+    will-change: transform;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.pillbox-cell.swiping-left,
+.pillbox-cell.swiping-right {
+    /* transform is set inline by JS */
+    z-index: 2;
+}
+
+.pillbox-cell.swipe-taken {
+    background: rgba(0, 229, 163, 0.4) !important;
+    border-color: #00b88a !important;
+    color: #00b88a !important;
+}
+.pillbox-cell.swipe-missed {
+    background: rgba(255, 82, 82, 0.35) !important;
+    border-color: #ff5252 !important;
+    color: #ff5252 !important;
+}
+[data-theme="dark"] .pillbox-cell.swipe-taken {
+    background: rgba(0, 229, 163, 0.3) !important;
+    color: #4ade80 !important;
+}
+[data-theme="dark"] .pillbox-cell.swipe-missed {
+    background: rgba(255, 82, 82, 0.3) !important;
+    color: #f87171 !important;
+}
+
+/* ============================================================
+   REFILL BUTTON ON TODAY'S DOSES CARD
+   ============================================================ */
+.refill-btn {
+    color: #0052CC;
+}
+.refill-btn:hover {
+    background: rgba(0, 82, 204, 0.12);
+}
+[data-theme="dark"] .refill-btn {
+    color: #60a5fa;
+}
+[data-theme="dark"] .refill-btn:hover {
+    background: rgba(96, 165, 250, 0.15);
+}
+
+/* Slight pulse when inventory is low, to draw the eye */
+.refill-btn.pulse {
+    animation: refillPulse 2s ease-in-out infinite;
+}
+@keyframes refillPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0, 82, 204, 0); }
+    50%      { box-shadow: 0 0 0 6px rgba(0, 82, 204, 0.15); }
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+    .toast-notification,
+    .refill-btn.pulse {
+        animation: none !important;
+    }
+    .pillbox-cell { transition: none; }
+}
+
